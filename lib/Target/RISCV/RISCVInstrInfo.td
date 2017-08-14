@@ -574,3 +574,42 @@ include "RISCVInstrInfoM.td"
 include "RISCVInstrInfoA.td"
 include "RISCVInstrInfoF.td"
 include "RISCVInstrInfoD.td"
+
+//===----------------------------------------------------------------------===//
+// Privileged instructions
+//===----------------------------------------------------------------------===//
+
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
+class Prv_ri<string opcodestr>
+    : RVInstI<0b000, OPC_SYSTEM, (outs), (ins), opcodestr, "">;
+
+def URET : Prv_ri<"uret"> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0b000000000010;
+}
+
+def SRET : Prv_ri<"sret"> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0b000100000010;
+}
+
+def MRET : Prv_ri<"mret"> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0b001100000010;
+}
+
+def WFI : Prv_ri<"wfi"> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0b000100000101;
+}
+
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
+def SFENCEVM : RVInstR<0b0001001, 0b000, OPC_SYSTEM, (outs),
+                  (ins GPR:$rs1, GPR:$rs2),
+                  "sfence.vma", "$rs1, $rs2"> {
+  let rd = 0;
+}
