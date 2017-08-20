@@ -750,7 +750,7 @@ SDValue RISCVTargetLowering::LowerFormalArguments(
 
   switch (CallConv) {
   default:
-    report_fatal_error("Unsupported calling convention");
+    report_fatal_error("Unsupported calling convention " + Twine(CallConv));
   case CallingConv::C:
   case CallingConv::Fast:
     break;
