@@ -1,0 +1,60 @@
+# LLVM RISC-V integration repository
+## Purpose of this repository
+This repository exists to act as a temporary downstream for RISC-V LLVM backend
+development. The ultimate goal is to get all patches merged upstream, and for
+development to primarily take place on upstream LLVM infrastructure (i.e.
+patches submitted directly for review). When the majority of the RISC-V LLVM
+patches are reviewed and merged, this repository will be retired. However, for
+the time being it exists to allow multiple parties to collaborate downstream.
+
+We integrate patches on top of the LLVM 5.0 release branch. Although this has 
+downsides, other prospective contributors have indicated their preference for 
+this.
+
+See README.orig for the original LLVM README.
+
+## Approach
+
+History will never be rewritten for this repo, unlike the
+[lowRISC/riscv-llvm](https://github.com/lowRISC/riscv-llvm) repo which contains
+a patchset which is modified and rebased as necessary in order to act as a
+reference for LLVM backend development. All commits must be in a form that they
+could reasonably be accepted upstream. i.e. they should include tests, not
+include temporary hacks, and should do one thing at a time.
+
+## Building
+
+See the [LLVM documentation](http://llvm.org/docs/GettingStarted.html) for 
+more general guidance. You will need ~7GiB space for a debug build of 
+LLVM+Clang.
+
+    mkdir build
+    cd build
+    cmake -G Ninja -DCMAKE_BUILD_TYPE="Debug" \
+      -DBUILD_SHARED_LIBS=True -DLLVM_USE_SPLIT_DWARF=True \
+      -DLLVM_OPTIMIZED_TABLEGEN=True \
+      -DLLVM_BUILD_TESTS=True \
+      -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="RISCV" ../
+    cmake --build .
+
+You may then want to run tests:
+
+    ./bin/llvm-lit -s -i -v test/MC/RISCV       # RISC-V MC-layer tests
+    ./bin/llvm-lit -s -i -v test/CodeGen/RISCV  # RISC-V CodeGen tests
+    ./bin/llvm-lit -s -i -v test                # All tests
+
+## Status
+
+See the [lowRISC/riscv-llvm](https://github.com/lowRISC/riscv-llvm) repository 
+and [status page](http://www.lowrisc.org/llvm/status/).
+
+## Contributing
+
+Pull requests that build on top of this repository's lib/Target/RISCV 
+implementation are very welcome. Code should follow the recommendations in 
+LLVM's [coding standards](https://llvm.org/docs/CodingStandards.html) and 
+[programmer's manual](http://llvm.org/docs/ProgrammersManual.html) and be in a 
+form you would be happy to submit for upstream review. You might want to refer 
+to [this issue list](https://github.com/lowrisc/riscv-llvm/issues), and check 
+the lowRISC/riscv-llvm repository in case there are in-development patches 
+that haven't yet been merged here.
