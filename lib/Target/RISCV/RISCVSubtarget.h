@@ -58,6 +58,7 @@ public:
   const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
     return &TSInfo;
   }
+  bool is64Bit() const { return HasRV64; }
 };
 } // End llvm namespace
 

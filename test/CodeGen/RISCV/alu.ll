@@ -160,3 +160,42 @@ define i32 @and(i32 %a, i32 %b) nounwind {
   %1 = and i32 %a, %b
   ret i32 %1
 }
+
+; Materialize constants
+
+define i32 @zero() {
+; CHECK-LABEL: zero:
+; CHECK: addi a0, zero, 0
+; CHECK: jalr zero, ra, 0
+  ret i32 0
+}
+
+define i32 @pos_small() {
+; CHECK-LABEL: pos_small:
+; CHECK: addi a0, zero, 2047
+; CHECK: jalr zero, ra, 0
+  ret i32 2047
+}
+
+define i32 @neg_small() {
+; CHECK-LABEL: neg_small:
+; CHECK: addi a0, zero, -2048
+; CHECK: jalr zero, ra, 0
+  ret i32 -2048
+}
+
+define i32 @pos_i32() {
+; CHECK-LABEL: pos_i32:
+; CHECK: lui [[REG:[a-z0-9]+]], 423811
+; CHECK: addi a0, [[REG]], -1297
+; CHECK: jalr zero, ra, 0
+  ret i32 1735928559
+}
+
+define i32 @neg_i32() {
+; CHECK-LABEL: neg_i32:
+; CHECK: lui [[REG:[a-z0-9]+]], 912092
+; CHECK: addi a0, [[REG]], -273
+; CHECK: jalr zero, ra, 0
+  ret i32 -559038737
+}

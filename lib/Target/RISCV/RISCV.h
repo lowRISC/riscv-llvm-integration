@@ -15,15 +15,22 @@
 #ifndef LLVM_LIB_TARGET_RISCV_RISCV_H
 #define LLVM_LIB_TARGET_RISCV_RISCV_H
 
+#include "MCTargetDesc/RISCVBaseInfo.h"
 #include "MCTargetDesc/RISCVMCTargetDesc.h"
+#include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
 class RISCVTargetMachine;
+class AsmPrinter;
 class MCInst;
 class MachineInstr;
 
-void LowerRISCVMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI);
+void LowerRISCVMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
+                                    const AsmPrinter &AP);
+bool LowerRISCVMachineOperandToMCOperand(const MachineOperand &MO,
+                                         MCOperand &MCOp, const AsmPrinter &AP);
 
 FunctionPass *createRISCVISelDag(RISCVTargetMachine &TM);
 }

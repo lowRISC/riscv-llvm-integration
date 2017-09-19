@@ -29,6 +29,10 @@ public:
   RISCVInstrInfo();
 
   const RISCVRegisterInfo &getRegisterInfo() const { return RI; }
+
+  void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator Position,
+                   const DebugLoc &DL, unsigned DestinationRegister,
+                   unsigned SourceRegister, bool KillSource) const override;
 };
 }
 

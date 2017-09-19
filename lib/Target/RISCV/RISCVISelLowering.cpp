@@ -37,7 +37,7 @@ using namespace llvm;
 
 RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
                                          const RISCVSubtarget &STI)
-    : TargetLowering(TM) {
+    : TargetLowering(TM), Subtarget(STI) {
 
   // Set up the register classes.
   addRegisterClass(MVT::i32, &RISCV::GPRRegClass);
@@ -47,9 +47,16 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
   setStackPointerRegisterToSaveRestore(RISCV::X2_32);
 
+  for (auto N : {ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD})
+    setLoadExtAction(N, MVT::i32, MVT::i1, Promote);
+
   // TODO: add all necessary setOperationAction calls.
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
+
+  setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
 
   setBooleanContents(ZeroOrOneBooleanContent);
+
 
   // Function alignments (log2).
   setMinFunctionAlignment(3);
@@ -59,8 +66,32 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
+  case ISD::GlobalAddress:
+    return lowerGlobalAddress(Op, DAG);
   default:
     report_fatal_error("unimplemented operand");
+  }
+}
+
+SDValue RISCVTargetLowering::lowerGlobalAddress(SDValue Op,
+                                                SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  EVT Ty = Op.getValueType();
+  GlobalAddressSDNode *N = cast<GlobalAddressSDNode>(Op);
+  const GlobalValue *GV = N->getGlobal();
+  int64_t Offset = N->getOffset();
+
+  if (!isPositionIndependent() && !Subtarget.is64Bit()) {
+    SDValue GAHi =
+        DAG.getTargetGlobalAddress(GV, DL, Ty, Offset, RISCVII::MO_HI);
+    SDValue GALo =
+        DAG.getTargetGlobalAddress(GV, DL, Ty, Offset, RISCVII::MO_LO);
+    SDValue MNHi = SDValue(DAG.getMachineNode(RISCV::LUI, DL, Ty, GAHi), 0);
+    SDValue MNLo =
+        SDValue(DAG.getMachineNode(RISCV::ADDI, DL, Ty, MNHi, GALo), 0);
+    return MNLo;
+  } else {
+    report_fatal_error("Unable to lowerGlobalAddress");
   }
 }
 

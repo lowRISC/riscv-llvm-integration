@@ -13,7 +13,6 @@
 
 include "RISCVInstrFormats.td"
 
-// Target-independent nodes
 def RetFlag : SDNode<"RISCVISD::RET_FLAG", SDTNone,
                      [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
@@ -80,6 +79,22 @@ def simm21_lsb0 : Operand<i32> {
   let DecoderMethod = "decodeSImmOperandAndLsl1<21>";
 }
 
+// Extract least significant 12 bits from an immediate value and sign extend
+// them.
+def LO12Sext : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(SignExtend64<12>(N->getZExtValue()),
+                                   SDLoc(N), MVT::i32);
+}]>;
+
+// Extract the most significant 20 bits from an immediate value. Add 1 if bit
+// 11 is 1, to compensate for the low 12 bits in the matching immediate addi
+// or ld/st being negative.
+def HI20 : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(((N->getZExtValue()+0x800) >> 12) & 0xfffff,
+                                   SDLoc(N), MVT::i32);
+}]>;
+
+
 // As noted in RISCVRegisterInfo.td, the hope is that support for
 // variable-sized register classes will mean that instruction definitions do
 // not need to be duplicated for 32-bit and 64-bit register classes. For now
@@ -125,9 +140,13 @@ def LW   : LD_ri<0b010, "lw">;
 def LBU  : LD_ri<0b100, "lbu">;
 def LHU  : LD_ri<0b101, "lhu">;
 
+// Operands for stores are in the order srcreg, base, offset rather than
+// reflecting the order these fields are specified in the instruction
+// encoding.
+
 let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
 class ST_ri<bits<3> funct3, string OpcodeStr> :
-      FS<funct3, 0b0100011, (outs), (ins GPR:$rs1, GPR:$rs2, simm12:$imm12),
+      FS<funct3, 0b0100011, (outs), (ins GPR:$rs2, GPR:$rs1, simm12:$imm12),
          OpcodeStr#"\t$rs2, ${imm12}(${rs1})", []>;
 
 def SB  : ST_ri<0b000, "sb">;
@@ -232,6 +251,11 @@ class PatGprSimm12<SDPatternOperator OpNode, FI Inst> :
 class PatGprUimm5<SDPatternOperator OpNode, FI32Shift Inst> :
       Pat<(OpNode GPR:$rs1, uimm5:$shamt), (Inst GPR:$rs1, uimm5:$shamt)>;
 
+/// Immediates
+
+def : Pat<(simm12:$imm), (ADDI X0_32, simm12:$imm)>;
+def : Pat<(i32 imm:$imm), (ADDI (LUI (HI20 imm:$imm)), (LO12Sext imm:$imm))>;
+
 /// Simple arithmetic operations
 
 def : PatGprGpr<add, ADD>;
@@ -262,3 +286,31 @@ def : PatGprSimm12<setult, SLTIU>;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(RetFlag)]>,
                 PseudoInstExpansion<(JALR X0_32, X1_32, 0)>;
+
+/// Loads
+
+multiclass LdPat<PatFrag LoadOp, RISCVInst Inst> {
+  def : Pat<(LoadOp GPR:$rs1), (Inst GPR:$rs1, 0)>;
+  def : Pat<(LoadOp (add GPR:$rs1, simm12:$imm12)),
+            (Inst GPR:$rs1, simm12:$imm12)>;
+}
+
+defm : LdPat<sextloadi8, LB>;
+defm : LdPat<extloadi8, LB>;
+defm : LdPat<sextloadi16, LH>;
+defm : LdPat<extloadi16, LH>;
+defm : LdPat<load, LW>;
+defm : LdPat<zextloadi8, LBU>;
+defm : LdPat<zextloadi16, LHU>;
+
+/// Stores
+
+multiclass StPat<PatFrag StoreOp, RISCVInst Inst> {
+  def : Pat<(StoreOp GPR:$rs2, GPR:$rs1), (Inst GPR:$rs2, GPR:$rs1, 0)>;
+  def : Pat<(StoreOp GPR:$rs2, (add GPR:$rs1, simm12:$imm12)),
+            (Inst GPR:$rs2, GPR:$rs1, simm12:$imm12)>;
+}
+
+defm : StPat<truncstorei8, SB>;
+defm : StPat<truncstorei16, SH>;
+defm : StPat<store, SW>;
