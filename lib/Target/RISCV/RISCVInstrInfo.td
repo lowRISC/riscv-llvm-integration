@@ -97,6 +97,14 @@ def simm21_lsb0 : Operand<OtherVT> {
   let DecoderMethod = "decodeSImmOperandAndLsl1<21>";
 }
 
+// Addressing modes
+def ADDRii : ComplexPattern<i32, 2, "SelectADDRii", [add, frameindex], []>;
+
+// Address operands
+def MEMii : Operand<i32> {
+  let MIOperandInfo = (ops i32imm, i32imm);
+}
+
 // Extract least significant 12 bits from an immediate value and sign extend
 // them.
 def LO12Sext : SDNodeXForm<imm, [{
@@ -297,6 +305,10 @@ def : PatGprUimm5<srl, SRLI>;
 def : PatGprGpr<sra, SRA>;
 def : PatGprUimm5<sra, SRAI>;
 
+// Add with a frameindex, used to legalize frameindex copies and necessary to
+// keep tblgen happy
+def LEA_FI : Pseudo<(outs GPR:$dst), (ins MEMii:$addr), [(set GPR:$dst, ADDRii:$addr)]>;
+
 /// Setcc
 
 def : PatGprGpr<setlt, SLT>;
@@ -386,6 +398,10 @@ defm : LdPat<load, LW>;
 defm : LdPat<zextloadi8, LBU>;
 defm : LdPat<zextloadi16, LHU>;
 
+def LW_FI : Pseudo<(outs GPR:$dst), (ins MEMii:$addr),
+                   [(set GPR:$dst, (load ADDRii:$addr))]>;
+
+
 /// Stores
 
 multiclass StPat<PatFrag StoreOp, RISCVInst Inst> {
@@ -397,6 +413,9 @@ multiclass StPat<PatFrag StoreOp, RISCVInst Inst> {
 defm : StPat<truncstorei8, SB>;
 defm : StPat<truncstorei16, SH>;
 defm : StPat<store, SW>;
+
+def SW_FI : Pseudo<(outs), (ins GPR:$src, MEMii:$addr),
+                   [(store GPR:$src, ADDRii:$addr)]>;
 
 /// Other pseudo-instructions
 
