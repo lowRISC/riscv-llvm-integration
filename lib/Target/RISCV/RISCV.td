@@ -10,10 +10,13 @@
 include "llvm/Target/Target.td"
 
 include "RISCVRegisterInfo.td"
+include "RISCVCallingConv.td"
 include "RISCVInstrInfo.td"
 
 
-def RISCVInstrInfo : InstrInfo;
+def RISCVInstrInfo : InstrInfo {
+  let guessInstructionProperties = 0;
+}
 
 def Feature64Bit   : SubtargetFeature<"64bit", "HasRV64", "true",
                                       "Implements RV64">;

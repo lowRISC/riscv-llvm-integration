@@ -79,12 +79,22 @@ foreach Index = 0-31 in {
 // similar are implemented, we can just use one 'GPR' class for most
 // instruction definitions.
 
-// TODO: once codegen is implemented, registers should be listed in an order
-// reflecting the preferred register allocation sequence.
+// The order of registers represents the preferred allocation sequence.
+// Registers are listed in the order caller-save, callee-save, specials.
 def GPR : RegisterClass<"RISCV", [i32], 32, (add
-  (sequence "X%u_32", 0, 31)
+  (sequence "X%u_32", 10, 17),
+  (sequence "X%u_32", 5, 7),
+  (sequence "X%u_32", 28, 31),
+  (sequence "X%u_32", 8, 9),
+  (sequence "X%u_32", 18, 27),
+  (sequence "X%u_32", 0, 4)
 )>;
 
 def GPR64 : RegisterClass<"RISCV", [i64], 64, (add
-  (sequence "X%u_64", 0, 31)
+  (sequence "X%u_64", 10, 17),
+  (sequence "X%u_64", 5, 7),
+  (sequence "X%u_64", 28, 31),
+  (sequence "X%u_64", 8, 9),
+  (sequence "X%u_64", 18, 27),
+  (sequence "X%u_64", 0, 4)
 )>;

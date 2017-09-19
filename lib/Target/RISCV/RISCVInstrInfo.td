@@ -13,6 +13,11 @@
 
 include "RISCVInstrFormats.td"
 
+// Target-independent nodes
+def RetFlag : SDNode<"RISCVISD::RET_FLAG", SDTNone,
+                     [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
+// Operands
 class ImmAsmOperand<string prefix, int width, string suffix> : AsmOperandClass {
   let Name = prefix # "Imm" # width # suffix;
   let RenderMethod = "addImmOperands";
@@ -39,12 +44,12 @@ def fencearg : Operand<i32> {
   let DecoderMethod = "decodeUImmOperand<4>";
 }
 
-def uimm5 : Operand<i32> {
+def uimm5 : Operand<i32>, ImmLeaf<i32, [{return isUInt<5>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<5>;
   let DecoderMethod = "decodeUImmOperand<5>";
 }
 
-def simm12 : Operand<i32> {
+def simm12 : Operand<i32>, ImmLeaf<i32, [{return isInt<12>(Imm);}]> {
   let ParserMatchClass = SImmAsmOperand<12>;
   let EncoderMethod = "getImmOpValue";
   let DecoderMethod = "decodeSImmOperand<12>";
@@ -83,6 +88,7 @@ def simm21_lsb0 : Operand<i32> {
 // like <http://lists.llvm.org/pipermail/llvm-dev/2016-September/105027.html>
 // is adopted.
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in {
 def LUI : FU<0b0110111, (outs GPR:$rd), (ins uimm20:$imm20),
              "lui\t$rd, $imm20", []>;
 
@@ -94,11 +100,12 @@ def JAL : FUJ<0b1101111, (outs GPR:$rd), (ins simm21_lsb0:$imm20),
 
 def JALR : FI<0b000, 0b1100111, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
               "jalr\t$rd, $rs1, $imm12", []>;
+}
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 class Bcc<bits<3> funct3, string OpcodeStr> :
       FSB<funct3, 0b1100011, (outs), (ins GPR:$rs1, GPR:$rs2, simm13_lsb0:$imm12),
-         OpcodeStr#"\t$rs1, $rs2, $imm12", []> {
-}
+         OpcodeStr#"\t$rs1, $rs2, $imm12", []>;
 
 def BEQ   : Bcc<0b000, "beq">;
 def BNE   : Bcc<0b001, "bne">;
@@ -107,11 +114,10 @@ def BGE   : Bcc<0b101, "bge">;
 def BLTU  : Bcc<0b110, "bltu">;
 def BGEU  : Bcc<0b111, "bgeu">;
 
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
 class LD_ri<bits<3> funct3, string OpcodeStr> :
       FI<funct3, 0b0000011, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-         OpcodeStr#"\t$rd, ${imm12}(${rs1})", []> {
-  let mayLoad = 1;
-}
+         OpcodeStr#"\t$rd, ${imm12}(${rs1})", []>;
 
 def LB   : LD_ri<0b000, "lb">;
 def LH   : LD_ri<0b001, "lh">;
@@ -119,21 +125,19 @@ def LW   : LD_ri<0b010, "lw">;
 def LBU  : LD_ri<0b100, "lbu">;
 def LHU  : LD_ri<0b101, "lhu">;
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
 class ST_ri<bits<3> funct3, string OpcodeStr> :
       FS<funct3, 0b0100011, (outs), (ins GPR:$rs1, GPR:$rs2, simm12:$imm12),
-         OpcodeStr#"\t$rs2, ${imm12}(${rs1})", []> {
-  let mayStore = 1;
-}
+         OpcodeStr#"\t$rs2, ${imm12}(${rs1})", []>;
 
 def SB  : ST_ri<0b000, "sb">;
 def SH  : ST_ri<0b001, "sh">;
 def SW  : ST_ri<0b010, "sw">;
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 class ALU_ri<bits<3> funct3, string OpcodeStr> :
       FI<funct3, 0b0010011, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-         OpcodeStr#"\t$rd, $rs1, $imm12", []>
-{
-}
+         OpcodeStr#"\t$rd, $rs1, $imm12", []>;
 
 def ADDI  : ALU_ri<0b000, "addi">;
 def SLTI  : ALU_ri<0b010, "slti">;
@@ -142,21 +146,19 @@ def XORI  : ALU_ri<0b100, "xori">;
 def ORI   : ALU_ri<0b110, "ori">;
 def ANDI  : ALU_ri<0b111, "andi">;
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 class SHIFT32_ri<bit arithshift, bits<3> funct3, string OpcodeStr> :
       FI32Shift<arithshift, funct3, 0b0010011, (outs GPR:$rd), (ins GPR:$rs1, uimm5:$shamt),
-         OpcodeStr#"\t$rd, $rs1, $shamt", []>
-{
-}
+         OpcodeStr#"\t$rd, $rs1, $shamt", []>;
 
 def SLLI : SHIFT32_ri<0, 0b001, "slli">;
 def SRLI : SHIFT32_ri<0, 0b101, "srli">;
 def SRAI : SHIFT32_ri<1, 0b101, "srai">;
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 class ALU_rr<bits<7> funct7, bits<3> funct3, string OpcodeStr> :
       FR<funct7, funct3, 0b0110011, (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-         OpcodeStr#"\t$rd, $rs1, $rs2", []>
-{
-}
+         OpcodeStr#"\t$rd, $rs1, $rs2", []>;
 
 def ADD  : ALU_rr<0b0000000, 0b000, "add">;
 def SUB  : ALU_rr<0b0100000, 0b000, "sub">;
@@ -169,6 +171,7 @@ def SRA  : ALU_rr<0b0100000, 0b101, "sra">;
 def OR   : ALU_rr<0b0000000, 0b110, "or">;
 def AND  : ALU_rr<0b0000000, 0b111, "and">;
 
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
 def FENCE : FI<0b000, 0b0001111, (outs), (ins fencearg:$pred, fencearg:$succ),
                "fence\t$pred, $succ", []> {
   bits<4> pred;
@@ -185,31 +188,77 @@ def FENCEI : FI<0b001, 0b0001111, (outs), (ins), "fence.i", []> {
   let imm12 = 0;
 }
 
-let rs1=0, rd=0 in {
+let rs1 = 0, rd = 0 in {
   def ECALL  : FI<0b000, 0b1110011, (outs), (ins), "ecall", []> {
-    let imm12=0;
+    let imm12 = 0;
   }
   def EBREAK : FI<0b000, 0b1110011, (outs), (ins), "ebreak", []> {
-    let imm12=1;
+    let imm12 = 1;
   }
 }
+}
 
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 class CSR_rr<bits<3> funct3, string OpcodeStr> :
       FI<funct3, 0b1110011, (outs GPR:$rd), (ins uimm12:$imm12, GPR:$rs1),
-         OpcodeStr#"\t$rd, $imm12, $rs1", []>
-{
-}
+         OpcodeStr#"\t$rd, $imm12, $rs1", []>;
 
 def CSRRW : CSR_rr<0b001, "csrrw">;
 def CSRRS : CSR_rr<0b010, "csrrs">;
 def CSRRC : CSR_rr<0b011, "csrrc">;
 
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 class CSR_ri<bits<3> funct3, string OpcodeStr> :
       FI<funct3, 0b1110011, (outs GPR:$rd), (ins uimm12:$imm12, uimm5:$rs1),
-         OpcodeStr#"\t$rd, $imm12, $rs1", []>
-{
-}
+         OpcodeStr#"\t$rd, $imm12, $rs1", []>;
 
 def CSRRWI : CSR_ri<0b101, "csrrwi">;
 def CSRRSI : CSR_ri<0b110, "csrrsi">;
 def CSRRCI : CSR_ri<0b111, "csrrci">;
+
+//===----------------------------------------------------------------------===//
+// Pseudo-instructions and codegen patterns
+//
+// Naming convention: For 'generic' pattern classes, we use the naming
+// convention PatTy1Ty2. For pattern classes which offer a more complex
+// expension, prefix the class name, e.g. BccPat.
+
+/// Generic pattern classes
+
+class PatGprGpr<SDPatternOperator OpNode, FR Inst> :
+      Pat<(OpNode GPR:$rs1, GPR:$rs2), (Inst GPR:$rs1, GPR:$rs2)>;
+class PatGprSimm12<SDPatternOperator OpNode, FI Inst> :
+      Pat<(OpNode GPR:$rs1, simm12:$imm12), (Inst GPR:$rs1, simm12:$imm12)>;
+class PatGprUimm5<SDPatternOperator OpNode, FI32Shift Inst> :
+      Pat<(OpNode GPR:$rs1, uimm5:$shamt), (Inst GPR:$rs1, uimm5:$shamt)>;
+
+/// Simple arithmetic operations
+
+def : PatGprGpr<add, ADD>;
+def : PatGprSimm12<add, ADDI>;
+def : PatGprGpr<sub, SUB>;
+def : PatGprGpr<or, OR>;
+def : PatGprSimm12<or, ORI>;
+def : PatGprGpr<and, AND>;
+def : PatGprSimm12<and, ANDI>;
+def : PatGprGpr<xor, XOR>;
+def : PatGprSimm12<xor, XORI>;
+def : PatGprGpr<shl, SLL>;
+def : PatGprUimm5<shl, SLLI>;
+def : PatGprGpr<srl, SRL>;
+def : PatGprUimm5<srl, SRLI>;
+def : PatGprGpr<sra, SRA>;
+def : PatGprUimm5<sra, SRAI>;
+
+/// Setcc
+
+def : PatGprGpr<setlt, SLT>;
+def : PatGprSimm12<setlt, SLTI>;
+def : PatGprGpr<setult, SLTU>;
+def : PatGprSimm12<setult, SLTIU>;
+
+/// Branches and jumps
+
+let isBarrier = 1, isReturn = 1, isTerminator = 1 in
+def PseudoRET : Pseudo<(outs), (ins), [(RetFlag)]>,
+                PseudoInstExpansion<(JALR X0_32, X1_32, 0)>;
