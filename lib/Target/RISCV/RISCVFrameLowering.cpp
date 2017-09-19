@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "RISCVFrameLowering.h"
+#include "RISCVMachineFunctionInfo.h"
 #include "RISCVSubtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -67,6 +68,7 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
   const RISCVInstrInfo *TII = STI.getInstrInfo();
+  RISCVMachineFunctionInfo *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   MachineBasicBlock::iterator MBBI = MBB.begin();
 
   unsigned FPReg = RISCV::X8_32;
@@ -111,7 +113,7 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   // Generate new FP
   BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), FPReg)
       .addReg(SPReg)
-      .addImm(StackSize)
+      .addImm(StackSize - RVFI->getVarArgsSaveSize())
       .setMIFlag(MachineInstr::FrameSetup);
 }
 
@@ -126,6 +128,7 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   const RISCVInstrInfo *TII = STI.getInstrInfo();
   const RISCVRegisterInfo *RI = STI.getRegisterInfo();
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  RISCVMachineFunctionInfo *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   DebugLoc DL = MBBI->getDebugLoc();
   unsigned FPReg = RISCV::X8_32;
   unsigned SPReg = RISCV::X2_32;
@@ -147,7 +150,7 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   if (RI->needsStackRealignment(MF) || MFI.hasVarSizedObjects()) {
     BuildMI(MBB, LastFrameDestroy, DL, TII->get(RISCV::ADDI), SPReg)
         .addReg(FPReg)
-        .addImm(-StackSize)
+        .addImm(-StackSize + RVFI->getVarArgsSaveSize())
         .setMIFlag(MachineInstr::FrameDestroy);
   }
 
