@@ -42,6 +42,8 @@ public:
 }
 
 void RISCVDAGToDAGISel::Select(SDNode *Node) {
+  unsigned Opcode = Node->getOpcode();
+
   // Dump information about the Node being selected.
   DEBUG(dbgs() << "Selecting: "; Node->dump(CurDAG); dbgs() << "\n");
 
@@ -50,6 +52,26 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     DEBUG(dbgs() << "== "; Node->dump(CurDAG); dbgs() << "\n");
     Node->setNodeId(-1);
     return;
+  }
+
+  // Instruction Selection not handled by the auto-generated tablegen selection
+  // should be handled here.
+  EVT VT = Node->getValueType(0);
+  switch (Opcode) {
+  case ISD::Constant:
+    if (VT == MVT::i32) {
+      ConstantSDNode *ConstNode = cast<ConstantSDNode>(Node);
+      // Materialize zero constants as copies from X0. This allows the coalescer
+      // to propagate these into other instructions.
+      if (ConstNode->isNullValue()) {
+        SDValue New = CurDAG->getCopyFromReg(
+            CurDAG->getEntryNode(), SDLoc(Node), RISCV::X0_32, MVT::i32);
+        return ReplaceNode(Node, New.getNode());
+      }
+    }
+    break;
+  default:
+    break;
   }
 
   // Select the default instruction.

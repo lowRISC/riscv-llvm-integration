@@ -1,44 +1,33 @@
 ; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s | FileCheck %s
 
-; FIXME: an unncessary register is allocated just to store 0. X0 should be
-; used instead
-
 define i8 @sext_i1_to_i8(i1 %a) {
-; TODO: the addi that stores 0 in t1 is unnecessary
 ; CHECK-LABEL: sext_i1_to_i8
 ; CHECK: andi a0, a0, 1
-; CHECK: addi a1, zero, 0
-; CHECK: sub a0, a1, a0
+; CHECK: sub a0, zero, a0
   %1 = sext i1 %a to i8
   ret i8 %1
 }
 
 define i16 @sext_i1_to_i16(i1 %a) {
-; TODO: the addi that stores 0 in t1 is unnecessary
 ; CHECK-LABEL: sext_i1_to_i16
 ; CHECK: andi a0, a0, 1
-; CHECK: addi a1, zero, 0
-; CHECK: sub a0, a1, a0
+; CHECK: sub a0, zero, a0
   %1 = sext i1 %a to i16
   ret i16 %1
 }
 
 define i32 @sext_i1_to_i32(i1 %a) {
-; TODO: the addi that stores 0 in t1 is unnecessary
 ; CHECK-LABEL: sext_i1_to_i32
 ; CHECK: andi a0, a0, 1
-; CHECK: addi a1, zero, 0
-; CHECK: sub a0, a1, a0
+; CHECK: sub a0, zero, a0
   %1 = sext i1 %a to i32
   ret i32 %1
 }
 
 define i64 @sext_i1_to_i64(i1 %a) {
-; TODO: the addi that stores 0 in t1 is unnecessary
 ; CHECK-LABEL: sext_i1_to_i64
 ; CHECK: andi a0, a0, 1
-; CHECK: addi a1, zero, 0
-; CHECK: sub a0, a1, a0
+; CHECK: sub a0, zero, a0
   %1 = sext i1 %a to i64
   ret i64 %1
 }
