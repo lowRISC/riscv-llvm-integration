@@ -60,7 +60,7 @@ def uimm12 : Operand<i32> {
 }
 
 // A 13-bit signed immediate where the least significant bit is zero.
-def simm13_lsb0 : Operand<i32> {
+def simm13_lsb0 : Operand<OtherVT> {
   let ParserMatchClass = SImmAsmOperand<13, "Lsb0">;
   let EncoderMethod = "getImmOpValueAsr1";
   let DecoderMethod = "decodeSImmOperandAndLsl1<13>";
@@ -73,7 +73,7 @@ def uimm20 : Operand<i32> {
 }
 
 // A 21-bit signed immediate where the least significant bit is zero.
-def simm21_lsb0 : Operand<i32> {
+def simm21_lsb0 : Operand<OtherVT> {
   let ParserMatchClass = SImmAsmOperand<21, "Lsb0">;
   let EncoderMethod = "getImmOpValueAsr1";
   let DecoderMethod = "decodeSImmOperandAndLsl1<21>";
@@ -120,7 +120,10 @@ def JALR : FI<0b000, 0b1100111, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 class Bcc<bits<3> funct3, string OpcodeStr> :
       FSB<funct3, 0b1100011, (outs), (ins GPR:$rs1, GPR:$rs2, simm13_lsb0:$imm12),
-         OpcodeStr#"\t$rs1, $rs2, $imm12", []>;
+         OpcodeStr#"\t$rs1, $rs2, $imm12", []> {
+  let isBranch = 1;
+  let isTerminator = 1;
+}
 
 def BEQ   : Bcc<0b000, "beq">;
 def BNE   : Bcc<0b001, "bne">;
@@ -282,6 +285,38 @@ def : PatGprGpr<setult, SLTU>;
 def : PatGprSimm12<setult, SLTIU>;
 
 /// Branches and jumps
+
+// Match `(brcond (CondOp ..), ..)` and lower to the appropriate RISC-V branch
+// instruction.
+class BccPat<PatFrag CondOp, FSB Inst> :
+      Pat<(brcond (i32 (CondOp GPR:$rs1, GPR:$rs2)), bb:$imm12),
+          (Inst GPR:$rs1, GPR:$rs2, simm13_lsb0:$imm12)>;
+
+def : BccPat<seteq, BEQ>;
+def : BccPat<setne, BNE>;
+def : BccPat<setlt, BLT>;
+def : BccPat<setge, BGE>;
+def : BccPat<setult, BLTU>;
+def : BccPat<setuge, BGEU>;
+
+class BccSwapPat<PatFrag CondOp, RISCVInst InstBcc> : Pat<
+  (brcond (i32 (CondOp GPR:$rs1, GPR:$rs2)), bb:$imm12),
+  (InstBcc GPR:$rs2, GPR:$rs1, bb:$imm12)>;
+
+// Condition codes that don't have matching RISC-V branch instructions, but
+// are trivially supported by swapping the two input operands
+def : BccSwapPat<setgt, BLT>;
+def : BccSwapPat<setle, BGE>;
+def : BccSwapPat<setugt, BLTU>;
+def : BccSwapPat<setule, BGEU>;
+
+// An extra pattern is needed for a brcond without a setcc (i.e. where the
+// condition was calculated elsewhere).
+def : Pat<(brcond GPR:$cond, bb:$imm12), (BNE GPR:$cond, X0_32, bb:$imm12)>;
+
+let isBarrier = 1, isBranch = 1, isTerminator = 1 in
+def PseudoBR : Pseudo<(outs), (ins simm21_lsb0:$imm20), [(br bb:$imm20)]>,
+               PseudoInstExpansion<(JAL X0_32, simm21_lsb0:$imm20)>;
 
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(RetFlag)]>,

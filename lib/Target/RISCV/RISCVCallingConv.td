@@ -29,3 +29,6 @@ def CC_RISCV32 : CallingConv<[
 
 def CSR : CalleeSavedRegs<(add X1_32, X3_32, X4_32, X8_32, X9_32,
                           (sequence "X%u_32", 18, 27))>;
+
+// Needed for implementation of RISCVRegisterInfo::getNoPreservedMask()
+def CSR_NoRegs : CalleeSavedRegs<(add)>;

@@ -24,8 +24,11 @@
 namespace llvm {
 class RISCVTargetMachine;
 class AsmPrinter;
+class MCContext;
 class MCInst;
+class MCOperand;
 class MachineInstr;
+class MachineOperand;
 
 void LowerRISCVMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
                                     const AsmPrinter &AP);

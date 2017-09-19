@@ -55,6 +55,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
 
+  setOperationAction(ISD::BR_CC, MVT::i32, Expand);
   setBooleanContents(ZeroOrOneBooleanContent);
 
 
