@@ -1,5 +1,9 @@
 ; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s | FileCheck %s
 
+; These tests are each targeted at a particular RISC-V ALU instruction. Other
+; files in this folder exercise LLVM IR instructions that don't directly match a
+; RISC-V instruction
+
 ; Register-immediate instructions
 
 define i32 @addi(i32 %a) nounwind {
