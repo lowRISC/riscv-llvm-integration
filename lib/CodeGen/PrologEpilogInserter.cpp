@@ -490,6 +490,12 @@ static void insertCSRSpillsAndRestores(MachineFunction &Fn,
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
         TII.storeRegToStackSlot(*SaveBlock, I, Reg, true, CSI[i].getFrameIdx(),
                                 RC, TRI);
+        // Ensure the instruction to spill the callee-saved register is marked
+        // as part of the frame setup. This assumes that the target's
+        // storeRegtoStackSlot only inserts one MachineInstr
+        --I;
+        I->setFlag(MachineInstr::FrameSetup);
+        ++I;
       }
     }
     // Update the live-in information of all the blocks up to the save point.
@@ -520,6 +526,12 @@ static void insertCSRSpillsAndRestores(MachineFunction &Fn,
         TII.loadRegFromStackSlot(*MBB, I, Reg, CSI[i].getFrameIdx(), RC, TRI);
         assert(I != MBB->begin() &&
                "loadRegFromStackSlot didn't insert any code!");
+        // Ensure the instruction to load the callee-saved register is marked
+        // as part of the frame destruction. This assumes that the target's
+        // loadRegFromStackSlot only inserts one MachineInstr
+        --I;
+        I->setFlag(MachineInstr::FrameDestroy);
+        ++I;
         // Insert in reverse order.  loadRegFromStackSlot can insert
         // multiple instructions.
         if (AtStart)
