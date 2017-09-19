@@ -13,8 +13,22 @@
 
 include "RISCVInstrFormats.td"
 
+def SDT_RISCVCallSeqStart : SDCallSeqStart<[SDTCisVT<0, i32>,
+                                            SDTCisVT<1, i32>]>;
+def SDT_RISCVCallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>,
+                                         SDTCisVT<1, i32>]>;
+def SDT_RISCVCall         : SDTypeProfile<0, -1, [SDTCisVT<0, i32>]>;
+
+
+def Call             : SDNode<"RISCVISD::CALL", SDT_RISCVCall,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                               SDNPVariadic]>;
 def RetFlag : SDNode<"RISCVISD::RET_FLAG", SDTNone,
                      [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def CallSeqStart     : SDNode<"ISD::CALLSEQ_START", SDT_RISCVCallSeqStart,
+                              [SDNPHasChain, SDNPOutGlue]>;
+def CallSeqEnd       : SDNode<"ISD::CALLSEQ_END", SDT_RISCVCallSeqEnd,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
 
 // Operands
 class ImmAsmOperand<string prefix, int width, string suffix> : AsmOperandClass {
@@ -110,9 +124,11 @@ def LUI : FU<0b0110111, (outs GPR:$rd), (ins uimm20:$imm20),
 def AUIPC : FU<0b0010111, (outs GPR:$rd), (ins uimm20:$imm20),
              "auipc\t$rd, $imm20", []>;
 
+let isCall = 1 in
 def JAL : FUJ<0b1101111, (outs GPR:$rd), (ins simm21_lsb0:$imm20),
               "jal\t$rd, $imm20", []>;
 
+let isCall = 1 in
 def JALR : FI<0b000, 0b1100111, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
               "jalr\t$rd, $rs1, $imm12", []>;
 }
@@ -318,6 +334,11 @@ let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0:$imm20), [(br bb:$imm20)]>,
                PseudoInstExpansion<(JAL X0_32, simm21_lsb0:$imm20)>;
 
+let isCall = 1, Defs=[X1_32] in
+def PseudoCALL : Pseudo<(outs), (ins GPR:$rs1), [(Call GPR:$rs1)]>,
+                 PseudoInstExpansion<(JALR X1_32, GPR:$rs1, 0)>;
+
+
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(RetFlag)]>,
                 PseudoInstExpansion<(JALR X0_32, X1_32, 0)>;
@@ -349,3 +370,13 @@ multiclass StPat<PatFrag StoreOp, RISCVInst Inst> {
 defm : StPat<truncstorei8, SB>;
 defm : StPat<truncstorei16, SH>;
 defm : StPat<store, SW>;
+
+/// Other pseudo-instructions
+
+// Pessimistically assume the stack pointer will be clobbered
+let Defs = [X2_32], Uses = [X2_32] in {
+  def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
+                                [(CallSeqStart timm:$amt1, timm:$amt2)]>;
+  def ADJCALLSTACKUP   : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
+                                [(CallSeqEnd timm:$amt1, timm:$amt2)]>;
+}
