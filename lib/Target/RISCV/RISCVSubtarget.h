@@ -49,7 +49,7 @@ public:
     return &FrameLowering;
   }
   const RISCVInstrInfo *getInstrInfo() const override { return &InstrInfo; }
-  const TargetRegisterInfo *getRegisterInfo() const override {
+  const RISCVRegisterInfo *getRegisterInfo() const override {
     return &InstrInfo.getRegisterInfo();
   }
   const RISCVTargetLowering *getTargetLowering() const override {

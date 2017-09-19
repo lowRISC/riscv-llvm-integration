@@ -24,10 +24,14 @@ public:
   explicit RISCVFrameLowering(const RISCVSubtarget &STI)
       : TargetFrameLowering(StackGrowsDown,
                             /*StackAlignment=*/16,
-                            /*LocalAreaOffset=*/0) {}
+                            /*LocalAreaOffset=*/0),
+        STI(STI) {}
 
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+
+  void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
+                            RegScavenger *RS) const override;
 
   bool hasFP(const MachineFunction &MF) const override;
 
@@ -36,6 +40,12 @@ public:
                                 MachineBasicBlock::iterator MI) const override {
     return MBB.erase(MI);
   }
+
+protected:
+  const RISCVSubtarget &STI;
+
+private:
+  void determineFrameLayout(MachineFunction &MF) const;
 };
 }
 #endif
