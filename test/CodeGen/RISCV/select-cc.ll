@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -mtriple=riscv32 -disable-block-placement -verify-machineinstrs < %s | FileCheck %s
 
 define i32 @foo(i32 %a, i32 *%b) {
 ; CHECK-LABEL: foo:
