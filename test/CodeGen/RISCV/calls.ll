@@ -47,3 +47,30 @@ define i32 @test_call_fastcc(i32 %a, i32 %b) {
   %1 = call fastcc i32 @fastcc_function(i32 %a, i32 %b)
   ret i32 %a
 }
+
+declare i32 @external_many_args(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32) nounwind
+
+define i32 @test_call_external_many_args(i32 %a) {
+; CHECK-LABEL: test_call_external_many_args:
+; CHECK: lui a0, %hi(external_many_args)
+; CHECK: addi t0, a0, %lo(external_many_args)
+; CHECK: jalr ra, t0, 0
+  %1 = call i32 @external_many_args(i32 %a, i32 %a, i32 %a, i32 %a, i32 %a,
+                                    i32 %a, i32 %a, i32 %a, i32 %a, i32 %a)
+  ret i32 %a
+}
+
+define i32 @defined_many_args(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32 %j) {
+  %added = add i32 %j, 1
+  ret i32 %added
+}
+
+define i32 @test_call_defined_many_args(i32 %a) {
+; CHECK-LABEL: test_call_defined_many_args:
+; CHECK: lui a1, %hi(defined_many_args)
+; CHECK: addi t0, a1, %lo(defined_many_args)
+; CHECK: jalr ra, t0, 0
+  %1 = call i32 @defined_many_args(i32 %a, i32 %a, i32 %a, i32 %a, i32 %a,
+                                   i32 %a, i32 %a, i32 %a, i32 %a, i32 %a)
+  ret i32 %1
+}

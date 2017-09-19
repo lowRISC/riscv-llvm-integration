@@ -284,6 +284,151 @@ RISCVTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
 }
 
 // Calling Convention Implementation.
+// The expectations for frontend ABI lowering vary from target to target.
+// Ideally, an LLVM frontend would be able to avoid worrying about many ABI
+// details, but this is a longer term goal. For now, we simply try to keep the
+// role of the frontend as simple and well-defined as possible. The rules can
+// be summarised as:
+// * Never split up large scalar arguments. We handle them here.
+// * If a hardfloat calling convention is being used, and the struct may be
+// passed in a pair of registers (fp+fp, int+fp), and both registers are
+// available, then pass as two separate arguments. If either the GPRs or FPRs
+// are exhausted, then pass according to the rule below.
+// * If a struct could never be passed in registers or directly in a stack
+// slot (as it is larger than 2x xlen and the floating point rules don't
+// apply), then pass it using a pointer with the byval attribute
+// * If a struct is less than 2x xlen, then coerce to either a two-element
+// word-sized array or a 2x xlen scalar (depending on alignment).
+// * The frontend can determine whether a struct is returned by reference or
+// not based on its size and fields. If it will be returned by reference, the
+// frontend must modify the prototype so a pointer with the sret annotation is
+// passed as the first argument. This is not necessary for large scalar
+// returns.
+// * Struct return values and varargs should be coerced to structs containing
+// register-size fields in the same situations they would be for fixed
+// arguments.
+
+static const MCPhysReg ArgGPRs[] = {
+  RISCV::X10_32, RISCV::X11_32, RISCV::X12_32, RISCV::X13_32,
+  RISCV::X14_32, RISCV::X15_32, RISCV::X16_32, RISCV::X17_32
+};
+
+// Pass a 2xlen argument that has been split in to two xlen values through
+// registers or the stack as necessary.
+static bool CC_RISCV32Assign2XLEN(CCState &State, CCValAssign VA1,
+                                  ISD::ArgFlagsTy ArgFlags1, unsigned ValNo2,
+                                  MVT ValVT2, MVT LocVT2,
+                                  ISD::ArgFlagsTy ArgFlags2) {
+  if (unsigned Reg = State.AllocateReg(ArgGPRs)) {
+    // At least one half can be passed via register
+    State.addLoc(CCValAssign::getReg(VA1.getValNo(), VA1.getValVT(), Reg,
+                                     VA1.getLocVT(), CCValAssign::Full));
+  } else {
+    // Both halves must be passed on the stack, with proper alignment
+    unsigned StackAlign = std::max(4u, ArgFlags1.getOrigAlign());
+    State.addLoc(CCValAssign::getMem(VA1.getValNo(), VA1.getValVT(),
+                                     State.AllocateStack(4, StackAlign),
+                                     VA1.getLocVT(), CCValAssign::Full));
+    State.addLoc(CCValAssign::getMem(ValNo2, ValVT2, State.AllocateStack(4, 4),
+                                     LocVT2, CCValAssign::Full));
+    return false;
+  }
+
+  if (unsigned Reg = State.AllocateReg(ArgGPRs)) {
+    // The second half can also be passed via register
+    State.addLoc(
+        CCValAssign::getReg(ValNo2, ValVT2, Reg, LocVT2, CCValAssign::Full));
+  } else {
+    // The second half is passed via the stack, without additional alignment
+    State.addLoc(CCValAssign::getMem(ValNo2, ValVT2, State.AllocateStack(4, 4),
+                                     LocVT2, CCValAssign::Full));
+  }
+
+  return false;
+}
+
+static bool CC_RISCV32(unsigned ValNo, MVT ValVT, MVT LocVT,
+                       CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
+                       CCState &State) {
+  // Promote i8 and i16
+  if (LocVT == MVT::i8 || LocVT == MVT::i16) {
+    LocVT = MVT::i32;
+    if (ArgFlags.isSExt())
+      LocInfo = CCValAssign::SExt;
+    else if (ArgFlags.isZExt())
+      LocInfo = CCValAssign::ZExt;
+    else
+      LocInfo = CCValAssign::AExt;
+  }
+
+  SmallVectorImpl<CCValAssign> &PendingMembers = State.getPendingLocs();
+  SmallVectorImpl<ISD::ArgFlagsTy> &PendingArgFlags =
+      State.getPendingArgFlags();
+
+  assert(PendingMembers.size() == PendingArgFlags.size());
+
+  // Split arguments might be passed indirectly, so keep track of the pending
+  // values.
+  if (ArgFlags.isSplit() || !PendingMembers.empty()) {
+    LocVT = MVT::i32;
+    LocInfo = CCValAssign::Indirect;
+    PendingMembers.push_back(
+        CCValAssign::getPending(ValNo, ValVT, LocVT, LocInfo));
+    PendingArgFlags.push_back(ArgFlags);
+    if (!ArgFlags.isSplitEnd()) {
+      return false;
+    }
+  }
+
+  // If the split argument only had two elements, it should be passed directly
+  // in registers or on the stack
+  if (ArgFlags.isSplitEnd() && PendingMembers.size() <= 2) {
+    assert(PendingMembers.size() == 2);
+    // Apply the normal calling convention rules to the first half of the
+    // split argument
+    CCValAssign VA = PendingMembers[0];
+    ISD::ArgFlagsTy AF = PendingArgFlags[0];
+    PendingMembers.clear();
+    PendingArgFlags.clear();
+    return CC_RISCV32Assign2XLEN(State, VA, AF, ValNo, ValVT, LocVT, ArgFlags);
+  }
+
+  // Allocate to a register if possible, or else a stack slot
+  unsigned Reg = State.AllocateReg(ArgGPRs);
+  unsigned StackOffset = Reg ? 0 : State.AllocateStack(4, 4);
+
+  // If we reach this point and PendingMembers is non-empty, we must be at the
+  // end of a split argument that must be passed indirect
+  if (!PendingMembers.empty()) {
+    assert(ArgFlags.isSplitEnd());
+    assert(PendingMembers.size() > 2);
+
+    for (auto &It : PendingMembers) {
+      if (Reg)
+        It.convertToReg(Reg);
+      else
+        It.convertToMem(StackOffset);
+      State.addLoc(It);
+    }
+    PendingMembers.clear();
+    PendingArgFlags.clear();
+    return false;
+  }
+
+  assert(LocVT.getSizeInBits() == 32 &&
+         "Programming error: should have a 32-bit sized type at this point");
+  // TODO: do I need to bit-convert f32?
+  assert(LocVT == MVT::i32 && "Expected and i32 at this stage");
+
+  if (Reg) {
+    State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+  } else {
+    State.addLoc(
+        CCValAssign::getMem(ValNo, ValVT, StackOffset, LocVT, LocInfo));
+  }
+  return false;
+}
+
 #include "RISCVGenCallingConv.inc"
 
 // Transform physical registers into virtual registers.
@@ -301,7 +446,9 @@ SDValue RISCVTargetLowering::LowerFormalArguments(
   }
 
   MachineFunction &MF = DAG.getMachineFunction();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
+  EVT PtrVT = getPointerTy(DAG.getDataLayout());
 
   if (IsVarArg)
     report_fatal_error("VarArg not supported");
@@ -311,27 +458,59 @@ SDValue RISCVTargetLowering::LowerFormalArguments(
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeFormalArguments(Ins, CC_RISCV32);
 
-  for (auto &VA : ArgLocs) {
+  for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
+    CCValAssign &VA = ArgLocs[I];
+    EVT LocVT = VA.getLocVT();
+    SDValue ArgValue;
     if (VA.isRegLoc()) {
       // Arguments passed in registers.
-      EVT RegVT = VA.getLocVT();
-      switch (RegVT.getSimpleVT().SimpleTy) {
+      switch (LocVT.getSimpleVT().SimpleTy) {
       case MVT::i32: {
         const unsigned VReg =
             RegInfo.createVirtualRegister(&RISCV::GPRRegClass);
         RegInfo.addLiveIn(VA.getLocReg(), VReg);
-        SDValue ArgIn = DAG.getCopyFromReg(Chain, DL, VReg, RegVT);
-
-        InVals.push_back(ArgIn);
+        ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, LocVT);
         break;
       }
       default:
         DEBUG(dbgs() << "LowerFormalArguments Unhandled argument type: "
-                     << RegVT.getEVTString() << "\n");
+                     << LocVT.getEVTString() << "\n");
         report_fatal_error("unhandled argument type");
       }
     } else {
-      report_fatal_error("Defined with too many args");
+      assert(VA.isMemLoc() && "Argument not register or memory");
+
+      // Create the frame index object for this incoming parameter.
+      int FI = MFI.CreateFixedObject(LocVT.getSizeInBits() / 8,
+                                     VA.getLocMemOffset(), true);
+
+      // Create the SelectionDAG nodes corresponding to a load
+      // from this parameter
+      SDValue FIN = DAG.getFrameIndex(FI, PtrVT);
+      ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN,
+                             MachinePointerInfo::getFixedStack(MF, FI));
+    }
+    // Convert the value of the argument register into the value that's
+    // being passed.
+    if (VA.getLocInfo() == CCValAssign::Indirect) {
+      InVals.push_back(DAG.getLoad(VA.getValVT(), DL, Chain, ArgValue,
+                                   MachinePointerInfo()));
+      // If the original argument was split and passed by reference (e.g. i128
+      // on RV32), we need to load all parts of it here (using the same
+      // address).
+      unsigned ArgIndex = Ins[I].OrigArgIndex;
+      assert(Ins[I].PartOffset == 0);
+      while (I + 1 != E && Ins[I + 1].OrigArgIndex == ArgIndex) {
+        CCValAssign &PartVA = ArgLocs[I + 1];
+        unsigned PartOffset = Ins[I + 1].PartOffset;
+        SDValue Address = DAG.getNode(ISD::ADD, DL, PtrVT, ArgValue,
+                                      DAG.getIntPtrConstant(PartOffset, DL));
+        InVals.push_back(DAG.getLoad(PartVA.getValVT(), DL, Chain, Address,
+                                     MachinePointerInfo()));
+        ++I;
+      }
+    } else {
+      InVals.push_back(ArgValue);
     }
   }
   return Chain;
@@ -367,38 +546,100 @@ SDValue RISCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   // Get a count of how many bytes are to be pushed on the stack.
   unsigned NumBytes = ArgCCInfo.getNextStackOffset();
 
-  for (auto &Arg : Outs) {
-    if (!Arg.Flags.isByVal())
+  // Create local copies for byval args
+  SmallVector<SDValue, 8> ByValArgs;
+  for (unsigned I = 0, E = Outs.size(); I != E; ++I) {
+    ISD::ArgFlagsTy Flags = Outs[I].Flags;
+    if (!Flags.isByVal())
       continue;
-    report_fatal_error("Passing arguments byval not yet implemented");
+
+    SDValue Arg = OutVals[I];
+    unsigned Size = Flags.getByValSize();
+    unsigned Align = Flags.getByValAlign();
+
+    int FI = MF.getFrameInfo().CreateStackObject(Size, Align, false);
+    SDValue FIPtr = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
+    // TODO: will need to change for i64
+    SDValue SizeNode = DAG.getConstant(Size, DL, MVT::i32);
+
+    Chain = DAG.getMemcpy(Chain, DL, FIPtr, Arg, SizeNode, Align,
+                          /*IsVolatile=*/false,
+                          /*AlwaysInline=*/false,
+                          /*isTailCall=*/false, MachinePointerInfo(),
+                          MachinePointerInfo());
+    ByValArgs.push_back(FIPtr);
   }
 
   Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, CLI.DL);
 
   // Copy argument values to their designated locations.
   SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
+  SmallVector<SDValue, 8> MemOpChains;
   SDValue StackPtr;
-  for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
+  for (unsigned I = 0, J = 0, E = ArgLocs.size(); I != E; ++I) {
     CCValAssign &VA = ArgLocs[I];
     SDValue ArgValue = OutVals[I];
+    ISD::ArgFlagsTy Flags = Outs[I].Flags;
 
     // Promote the value if needed.
-    // For now, only handle fully promoted arguments.
+    // For now, only handle fully promoted and indirect arguments.
     switch (VA.getLocInfo()) {
     case CCValAssign::Full:
       break;
+    case CCValAssign::Indirect: {
+      // Store the argument in a stack slot and pass its address.
+      SDValue SpillSlot = DAG.CreateStackTemporary(Outs[I].ArgVT);
+      int FI = cast<FrameIndexSDNode>(SpillSlot)->getIndex();
+      MemOpChains.push_back(
+          DAG.getStore(Chain, DL, ArgValue, SpillSlot,
+                       MachinePointerInfo::getFixedStack(MF, FI)));
+      // If the original argument was split (e.g. i128), we need
+      // to store all parts of it here (and pass just one address).
+      unsigned ArgIndex = Outs[I].OrigArgIndex;
+      assert(Outs[I].PartOffset == 0);
+      while (I + 1 != E && Outs[I + 1].OrigArgIndex == ArgIndex) {
+        SDValue PartValue = OutVals[I + 1];
+        unsigned PartOffset = Outs[I + 1].PartOffset;
+        SDValue Address = DAG.getNode(ISD::ADD, DL, PtrVT, SpillSlot,
+                                      DAG.getIntPtrConstant(PartOffset, DL));
+        MemOpChains.push_back(
+            DAG.getStore(Chain, DL, PartValue, Address,
+                         MachinePointerInfo::getFixedStack(MF, FI)));
+        ++I;
+      }
+      ArgValue = SpillSlot;
+      break;
+    }
     default:
       llvm_unreachable("Unknown loc info!");
     }
+
+    // Use local copy if it is a byval arg.
+    if (Flags.isByVal())
+      ArgValue = ByValArgs[J++];
 
     if (VA.isRegLoc()) {
       // Queue up the argument copies and emit them at the end.
       RegsToPass.push_back(std::make_pair(VA.getLocReg(), ArgValue));
     } else {
       assert(VA.isMemLoc() && "Argument not register or memory");
-      report_fatal_error("Passing arguments via the stack not yet implemented");
+
+      // Work out the address of the stack slot.
+      if (!StackPtr.getNode())
+        StackPtr = DAG.getCopyFromReg(Chain, DL, RISCV::X2_32, PtrVT);
+      SDValue Address =
+          DAG.getNode(ISD::ADD, DL, PtrVT, StackPtr,
+                      DAG.getIntPtrConstant(VA.getLocMemOffset(), DL));
+
+      // Emit the store.
+      MemOpChains.push_back(
+          DAG.getStore(Chain, DL, ArgValue, Address, MachinePointerInfo()));
     }
   }
+
+  // Join the stores, which are independent of one another.
+  if (!MemOpChains.empty())
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
 
   SDValue Glue;
 
@@ -463,6 +704,14 @@ SDValue RISCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   }
 
   return Chain;
+}
+
+bool RISCVTargetLowering::CanLowerReturn(
+    CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
+    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
+  SmallVector<CCValAssign, 16> RVLocs;
+  CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, Context);
+  return CCInfo.CheckReturn(Outs, RetCC_RISCV32);
 }
 
 SDValue

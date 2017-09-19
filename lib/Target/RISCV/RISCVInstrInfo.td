@@ -378,7 +378,10 @@ let isCall = 1, Defs = [X1_32] in
 def PseudoCALL : Pseudo<(outs), (ins GPR:$rs1), [(Call GPR:$rs1)]>,
                  PseudoInstExpansion<(JALR X1_32, GPR:$rs1, 0)>;
 
-let isBarrier = 1, isReturn = 1, isTerminator = 1 in
+// FIXME: PseudoRET doesn't really modify X1_32 (RA), however marking it as
+// such does ensure the the return address is always given a stack slot.
+
+let Defs = [X1_32], isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(RetFlag)]>,
                 PseudoInstExpansion<(JALR X0_32, X1_32, 0)>;
 
