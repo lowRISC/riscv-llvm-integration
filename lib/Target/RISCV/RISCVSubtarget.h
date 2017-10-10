@@ -30,11 +30,19 @@ class StringRef;
 
 class RISCVSubtarget : public RISCVGenSubtargetInfo {
   virtual void anchor();
-  RISCVInstrInfo InstrInfo;
+  bool HasRV64 = false;
+  unsigned XLen = 32;
+  MVT XLenVT = MVT::i32;
   RISCVFrameLowering FrameLowering;
+  RISCVInstrInfo InstrInfo;
+  RISCVRegisterInfo RegInfo;
   RISCVTargetLowering TLInfo;
   SelectionDAGTargetInfo TSInfo;
-  bool HasRV64;
+
+  /// Initializes using the passed in CPU and feature strings so that we can
+  /// use initializer lists for subtarget initialization.
+  RISCVSubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS,
+                                                  bool Is64Bit);
 
 public:
   // Initializes the data members to match that of the specified triple.
@@ -50,7 +58,7 @@ public:
   }
   const RISCVInstrInfo *getInstrInfo() const override { return &InstrInfo; }
   const RISCVRegisterInfo *getRegisterInfo() const override {
-    return &InstrInfo.getRegisterInfo();
+    return &RegInfo;
   }
   const RISCVTargetLowering *getTargetLowering() const override {
     return &TLInfo;
@@ -59,6 +67,8 @@ public:
     return &TSInfo;
   }
   bool is64Bit() const { return HasRV64; }
+  MVT getXLenVT() const { return XLenVT; }
+  unsigned getXLen() const { return XLen; }
 };
 } // End llvm namespace
 

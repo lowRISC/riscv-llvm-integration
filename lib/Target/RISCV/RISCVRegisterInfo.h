@@ -23,7 +23,7 @@ namespace llvm {
 
 struct RISCVRegisterInfo : public RISCVGenRegisterInfo {
 
-  RISCVRegisterInfo();
+  RISCVRegisterInfo(unsigned HwMode);
 
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
                                        CallingConv::ID) const override;

@@ -26,12 +26,18 @@ using namespace llvm;
 // SelectionDAG operations.
 namespace {
 class RISCVDAGToDAGISel final : public SelectionDAGISel {
+  const RISCVSubtarget *Subtarget;
 public:
   explicit RISCVDAGToDAGISel(RISCVTargetMachine &TargetMachine)
       : SelectionDAGISel(TargetMachine) {}
 
   StringRef getPassName() const override {
     return "RISCV DAG->DAG Pattern Instruction Selection";
+  }
+
+  bool runOnMachineFunction(MachineFunction &MF) override {
+    Subtarget = &MF.getSubtarget<RISCVSubtarget>();
+    return SelectionDAGISel::runOnMachineFunction(MF);
   }
 
   void Select(SDNode *Node) override;
@@ -48,6 +54,7 @@ public:
 
 void RISCVDAGToDAGISel::Select(SDNode *Node) {
   unsigned Opcode = Node->getOpcode();
+  MVT XLenVT = Subtarget->getXLenVT();
 
   // Dump information about the Node being selected.
   DEBUG(dbgs() << "Selecting: "; Node->dump(CurDAG); dbgs() << "\n");
@@ -64,13 +71,13 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
   EVT VT = Node->getValueType(0);
   switch (Opcode) {
   case ISD::Constant:
-    if (VT == MVT::i32) {
+    if (VT == XLenVT) {
       ConstantSDNode *ConstNode = cast<ConstantSDNode>(Node);
       // Materialize zero constants as copies from X0. This allows the coalescer
       // to propagate these into other instructions.
       if (ConstNode->isNullValue()) {
         SDValue New = CurDAG->getCopyFromReg(
-            CurDAG->getEntryNode(), SDLoc(Node), RISCV::X0_32, MVT::i32);
+            CurDAG->getEntryNode(), SDLoc(Node), RISCV::X0, XLenVT);
         return ReplaceNode(Node, New.getNode());
       }
     }

@@ -114,8 +114,8 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   RISCVMachineFunctionInfo *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   MachineBasicBlock::iterator MBBI = MBB.begin();
 
-  unsigned FPReg = RISCV::X8_32;
-  unsigned SPReg = RISCV::X2_32;
+  unsigned FPReg = RISCV::X8;
+  unsigned SPReg = RISCV::X2;
 
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
@@ -161,8 +161,8 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   RISCVMachineFunctionInfo *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   DebugLoc DL = MBBI->getDebugLoc();
-  unsigned FPReg = RISCV::X8_32;
-  unsigned SPReg = RISCV::X2_32;
+  unsigned FPReg = RISCV::X8;
+  unsigned SPReg = RISCV::X2;
 
   // Skip to before the restores of callee-saved registers
   MachineBasicBlock::iterator Begin = MBB.begin();
@@ -192,7 +192,10 @@ void RISCVFrameLowering::determineCalleeSaves(MachineFunction &MF,
                                               BitVector &SavedRegs,
                                               RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
-  SavedRegs.set(RISCV::X8_32);
+  // TODO: once frame pointer elimination is implemented, don't
+  // unconditionally spill the frame pointer and return address
+  SavedRegs.set(RISCV::X1);
+  SavedRegs.set(RISCV::X8);
   return;
 }
 

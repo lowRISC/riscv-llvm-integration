@@ -23,12 +23,9 @@
 namespace llvm {
 
 class RISCVInstrInfo : public RISCVGenInstrInfo {
-  const RISCVRegisterInfo RI;
 
 public:
   RISCVInstrInfo();
-
-  const RISCVRegisterInfo &getRegisterInfo() const { return RI; }
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator Position,
                    const DebugLoc &DL, unsigned DestinationRegister,

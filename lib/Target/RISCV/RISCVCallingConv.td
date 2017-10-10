@@ -11,14 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RISCV 32-bit C return-value convention.
-def RetCC_RISCV32 : CallingConv<[CCIfType<[i32], CCAssignToReg<[X10_32, X11_32]>>]>;
+// The RISC-V calling convention is handled with custom code in
+// RISCVISelLowering.cpp (CC_RISCV).
 
-// RISCV 32-bit C Calling convention.
-def CC_RISCV32 : CustomCallingConv;
-
-def CSR : CalleeSavedRegs<(add X1_32, X3_32, X4_32, X8_32, X9_32,
-                          (sequence "X%u_32", 18, 27))>;
+def CSR : CalleeSavedRegs<(add X1, X3, X4, X8, X9, (sequence "X%u", 18, 27))>;
 
 // Needed for implementation of RISCVRegisterInfo::getNoPreservedMask()
 def CSR_NoRegs : CalleeSavedRegs<(add)>;

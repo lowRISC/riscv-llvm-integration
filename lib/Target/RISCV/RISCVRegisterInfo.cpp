@@ -28,7 +28,9 @@
 
 using namespace llvm;
 
-RISCVRegisterInfo::RISCVRegisterInfo() : RISCVGenRegisterInfo(RISCV::X1_32) {}
+RISCVRegisterInfo::RISCVRegisterInfo(unsigned HwMode)
+    : RISCVGenRegisterInfo(RISCV::X1, /*DwarfFlavour*/0, /*EHFlavor*/0,
+                           /*PC*/0, HwMode) {}
 
 const MCPhysReg *
 RISCVRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
@@ -39,18 +41,12 @@ BitVector RISCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
 
   // Use markSuperRegs to ensure any register aliases are also reserved
-  markSuperRegs(Reserved, RISCV::X0_64); // zero
-  markSuperRegs(Reserved, RISCV::X0_32); // zero
-  markSuperRegs(Reserved, RISCV::X1_64); // ra
-  markSuperRegs(Reserved, RISCV::X1_32); // ra
-  markSuperRegs(Reserved, RISCV::X2_64); // sp
-  markSuperRegs(Reserved, RISCV::X2_32); // sp
-  markSuperRegs(Reserved, RISCV::X3_64); // gp
-  markSuperRegs(Reserved, RISCV::X3_32); // gp
-  markSuperRegs(Reserved, RISCV::X4_64); // tp
-  markSuperRegs(Reserved, RISCV::X4_32); // tp
-  markSuperRegs(Reserved, RISCV::X8_64); // fp
-  markSuperRegs(Reserved, RISCV::X8_32); // fp
+  markSuperRegs(Reserved, RISCV::X0); // zero
+  markSuperRegs(Reserved, RISCV::X1); // ra
+  markSuperRegs(Reserved, RISCV::X2); // sp
+  markSuperRegs(Reserved, RISCV::X3); // gp
+  markSuperRegs(Reserved, RISCV::X4); // tp
+  markSuperRegs(Reserved, RISCV::X8); // fp
   assert(checkAllSuperRegsMarked(Reserved));
   return Reserved;
 }
@@ -91,7 +87,7 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
 
   if ((FrameIndex >= MinCSFI && FrameIndex <= MaxCSFI)) {
-    FrameReg = RISCV::X2_32;
+    FrameReg = RISCV::X2;
     Offset += MF.getFrameInfo().getStackSize();
   } else {
     FrameReg = getFrameRegister(MF);
@@ -156,7 +152,7 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 }
 
 unsigned RISCVRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  return RISCV::X8_32;
+  return RISCV::X8;
 }
 
 const uint32_t *
