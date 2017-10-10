@@ -141,3 +141,11 @@ def FPR32 : RegisterClass<"RISCV", [f32], 32, (add
     (sequence "F%u_32", 8, 9),
     (sequence "F%u_32", 18, 27)
 )>;
+
+def FPR64 : RegisterClass<"RISCV", [f64], 64, (add
+  (sequence "F%u_64", 0, 7),
+  (sequence "F%u_64", 10, 17),
+  (sequence "F%u_64", 28, 31),
+  (sequence "F%u_64", 8, 9),
+  (sequence "F%u_64", 18, 27)
+)>;

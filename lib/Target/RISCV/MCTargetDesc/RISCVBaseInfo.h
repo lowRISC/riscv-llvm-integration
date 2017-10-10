@@ -24,11 +24,12 @@ namespace RISCVII {
 enum {
   InstFormatPseudo = 0,
   InstFormatR = 1,
-  InstFormatI = 2,
-  InstFormatS = 3,
-  InstFormatB = 4,
-  InstFormatU = 5,
-  InstFormatOther = 6,
+  InstFormatR4 = 2,
+  InstFormatI = 3,
+  InstFormatS = 4,
+  InstFormatB = 5,
+  InstFormatU = 6,
+  InstFormatOther = 7,
 
   InstFormatMask = 15
 };
