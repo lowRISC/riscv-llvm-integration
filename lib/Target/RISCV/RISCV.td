@@ -18,6 +18,11 @@ def FeatureStdExtM : SubtargetFeature<"m", "HasStdExtM", "true",
 def HasStdExtM     : Predicate<"Subtarget->hasStdExtM()">,
                            AssemblerPredicate<"FeatureStdExtM">;
 
+def FeatureStdExtA : SubtargetFeature<"a", "HasStdExtA", "true",
+                           "'A' (Atomic Instructions)">;
+def HasStdExtA     :  Predicate<"Subtarget->hasStdExtA()">,
+                           AssemblerPredicate<"FeatureStdExtA">;
+
 def Feature64Bit   : SubtargetFeature<"64bit", "HasRV64", "true",
                            "Implements RV64">;
 
