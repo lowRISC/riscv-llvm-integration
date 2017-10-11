@@ -22,3 +22,5 @@ fmv.w.x a8, ft2 # CHECK: :[[@LINE]]:9: error: invalid operand for instruction
 
 # Using 'D' instructions for an 'F'-only target
 fadd.d ft0, ft1, ft2 # CHECK: :[[@LINE]]:1: error: instruction use requires an option to be enabled
+
+# Using RV64F instructions for RV32 is tested in rv64f-valid.s

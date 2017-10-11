@@ -111,3 +111,21 @@ def FMV_W_X : FPUnaryOp_r<0b1111000, 0b000, FPR32, GPR, "fmv.w.x"> {
   let rs2 = 0b00000;
 }
 } // Predicates = [HasStdExtF]
+
+let Predicates = [HasStdExtF, IsRV64] in {
+def FCVT_L_S  : FPUnaryOp_r<0b1100000, 0b111, GPR, FPR32, "fcvt.l.s"> {
+  let rs2 = 0b00010;
+}
+
+def FCVT_LU_S  : FPUnaryOp_r<0b1100000, 0b111, GPR, FPR32, "fcvt.lu.s"> {
+  let rs2 = 0b00011;
+}
+
+def FCVT_S_L : FPUnaryOp_r<0b1101000, 0b111, FPR32, GPR, "fcvt.s.l"> {
+  let rs2 = 0b00010;
+}
+
+def FCVT_S_LU : FPUnaryOp_r<0b1101000, 0b111, FPR32, GPR, "fcvt.s.lu"> {
+  let rs2 = 0b00011;
+}
+} // Predicates = [HasStdExtF, IsRV64]
