@@ -95,16 +95,16 @@ static const unsigned FPR32DecoderTable[] = {
 static DecodeStatus DecodeFPR32RegisterClass(MCInst &Inst, uint64_t RegNo,
                                              uint64_t Address,
                                              const void *Decoder) {
-   if (RegNo > sizeof(FPR32DecoderTable)) {
-     return MCDisassembler::Fail;
-   }
+  if (RegNo > sizeof(FPR32DecoderTable)) {
+    return MCDisassembler::Fail;
+  }
 
-   // We must define our own mapping from RegNo to register identifier.
-   // Accessing index RegNo in the register class will work in the case that
-   // registers were added in ascending order, but not in general.
-   unsigned Reg = FPR32DecoderTable[RegNo];
-   Inst.addOperand(MCOperand::createReg(Reg));
-   return MCDisassembler::Success;
+  // We must define our own mapping from RegNo to register identifier.
+  // Accessing index RegNo in the register class will work in the case that
+  // registers were added in ascending order, but not in general.
+  unsigned Reg = FPR32DecoderTable[RegNo];
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
 }
 
 static const unsigned FPR64DecoderTable[] = {
