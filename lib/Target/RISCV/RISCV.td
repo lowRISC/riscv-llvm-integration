@@ -60,6 +60,7 @@ def RISCVInstrInfo : InstrInfo {
 
 def RISCVAsmParser : AsmParser {
   let ShouldEmitMatchRegisterAltName = 1;
+  let AllowDuplicateRegisterNames = 1;
 }
 
 def RISCV : Target {
