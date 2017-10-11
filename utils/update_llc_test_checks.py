@@ -77,6 +77,12 @@ ASM_FUNCTION_SYSTEMZ_RE = re.compile(
     r'.Lfunc_end[0-9]+:\n',
     flags=(re.M | re.S))
 
+ASM_FUNCTION_RISCV_RE = re.compile(
+    r'^_?(?P<func>[^:]+):[ \t]*#+[ \t]*@(?P=func)\n[^:]*?'
+    r'(?P<body>^##?[ \t]+[^:]+:.*?)\s*'
+    r'.Lfunc_end[0-9]+:\n',
+    flags=(re.M | re.S))
+
 
 def scrub_asm_x86(asm):
   # Scrub runs of whitespace out of the assembly, but leave the leading
@@ -132,6 +138,16 @@ def scrub_asm_systemz(asm):
   asm = SCRUB_TRAILING_WHITESPACE_RE.sub(r'', asm)
   return asm
 
+def scrub_asm_riscv(asm):
+  # Scrub runs of whitespace out of the assembly, but leave the leading
+  # whitespace in place.
+  asm = SCRUB_WHITESPACE_RE.sub(r' ', asm)
+  # Expand the tabs used for indentation.
+  asm = string.expandtabs(asm, 2)
+  # Strip trailing whitespace.
+  asm = SCRUB_TRAILING_WHITESPACE_RE.sub(r'', asm)
+  return asm
+
 
 # Build up a dictionary of all the function bodies.
 def build_function_body_dictionary(raw_tool_output, triple, prefixes, func_dict,
@@ -147,6 +163,8 @@ def build_function_body_dictionary(raw_tool_output, triple, prefixes, func_dict,
       'armeb-eabi': (scrub_asm_arm_eabi, ASM_FUNCTION_ARM_RE),
       'powerpc64le': (scrub_asm_powerpc64le, ASM_FUNCTION_PPC_RE),
       's390x': (scrub_asm_systemz, ASM_FUNCTION_SYSTEMZ_RE),
+      'riscv32': (scrub_asm_riscv, ASM_FUNCTION_RISCV_RE),
+      'riscv64': (scrub_asm_riscv, ASM_FUNCTION_RISCV_RE),
   }
   handlers = None
   for prefix, s in target_handlers.items():
