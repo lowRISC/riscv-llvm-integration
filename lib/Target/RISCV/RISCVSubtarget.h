@@ -33,6 +33,7 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool HasStdExtM = false;
   bool HasStdExtA = false;
   bool HasStdExtF = false;
+  bool HasStdExtD = false;
   bool HasRV64 = false;
   unsigned XLen = 32;
   MVT XLenVT = MVT::i32;

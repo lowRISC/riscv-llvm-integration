@@ -1,4 +1,4 @@
-# RUN: not llvm-mc -triple riscv32 < %s 2>&1 | FileCheck %s
+# RUN: not llvm-mc -triple riscv32 -mattr=+f < %s 2>&1 | FileCheck %s
 
 # Out of range immediates
 ## simm12
@@ -19,3 +19,6 @@ fmv.x.w fs7, a2 # CHECK: :[[@LINE]]:9: error: invalid operand for instruction
 
 # FP registers where integer regs are expected
 fmv.w.x a8, ft2 # CHECK: :[[@LINE]]:9: error: invalid operand for instruction
+
+# Using 'D' instructions for an 'F'-only target
+fadd.d ft0, ft1, ft2 # CHECK: :[[@LINE]]:1: error: instruction use requires an option to be enabled
