@@ -71,6 +71,17 @@ class CSS<bits<3> funct3, bits<2> opcode, dag outs, dag ins,
   let Inst{1-0} = opcode;
 }
 
+class CIW<bits<3> funct3, bits<2> opcode, dag outs, dag ins,
+         string asmstr>
+    : RV16Inst<outs, ins, asmstr, [], InstFormatC> {
+  bits<10> imm;
+  bits<3> rd;
+
+  let Inst{15-13} = funct3;
+  let Inst{4-2} = rd;
+  let Inst{1-0} = opcode;
+}
+
 class CL<bits<3> funct3, bits<2> opcode, dag outs, dag ins,
          string asmstr>
     : RV16Inst<outs, ins, asmstr, [], InstFormatC> {

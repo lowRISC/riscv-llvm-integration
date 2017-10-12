@@ -148,7 +148,12 @@ static DecodeStatus DecodeFPR64RegisterClass(MCInst &Inst, uint64_t RegNo,
 // in bit field)
 static void addImplySP(MCInst &Inst, int64_t Address, const void *Decoder) {
   if (Inst.getOpcode() == RISCV::CLWSP ||
-      Inst.getOpcode() == RISCV::CSWSP) {
+      Inst.getOpcode() == RISCV::CSWSP ||
+      Inst.getOpcode() == RISCV::CADDI4SPN) {
+    DecodeGPRRegisterClass(Inst, 2, Address, Decoder);
+  }
+  if (Inst.getOpcode() == RISCV::CADDI16SP) {
+    DecodeGPRRegisterClass(Inst, 2, Address, Decoder);
     DecodeGPRRegisterClass(Inst, 2, Address, Decoder);
   }
 }
@@ -167,6 +172,8 @@ template <unsigned N>
 static DecodeStatus decodeSImmOperand(MCInst &Inst, uint64_t Imm,
                                       int64_t Address, const void *Decoder) {
   assert(isUInt<N>(Imm) && "Invalid immediate");
+
+  addImplySP(Inst, Address, Decoder);
   // Sign-extend the number in the bottom N bits of Imm
   Inst.addOperand(MCOperand::createImm(SignExtend64<N>(Imm)));
   return MCDisassembler::Success;

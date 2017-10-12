@@ -17,3 +17,6 @@ c.beqz  a3, .LBB0_2
 # CHECK-INSTR: c.bnez  a5, -8
 c.bnez  a5, .LBB0_2
 
+# CHECK: encoding: [0bAAAAAA01,0b001AAAAA]
+# CHECK:   fixup A - offset: 0, value: func1, kind: fixup_riscv_rvc_jump
+c.jal   func1
