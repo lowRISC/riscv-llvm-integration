@@ -30,7 +30,10 @@ enum {
   InstFormatB = 5,
   InstFormatU = 6,
   InstFormatJ = 7,
-  InstFormatOther = 8,
+  InstFormatC = 8,
+  InstFormatCB = 9,
+  InstFormatCJ = 10,
+  InstFormatOther = 11,
 
   InstFormatMask = 15
 };

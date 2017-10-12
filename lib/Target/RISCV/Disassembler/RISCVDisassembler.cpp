@@ -81,6 +81,17 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint64_t RegNo,
    return MCDisassembler::Success;
 }
 
+static DecodeStatus DecodeGPRCRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                            uint64_t Address,
+                                            const void *Decoder) {
+   if (RegNo > sizeof(GPRDecoderTable)) {
+     return MCDisassembler::Fail;
+   }
+   unsigned Reg = GPRDecoderTable[RegNo + 8];
+   Inst.addOperand(MCOperand::createReg(Reg));
+   return MCDisassembler::Success;
+}
+
 static const unsigned FPR32DecoderTable[] = {
   RISCV::F0_32,  RISCV::F1_32,  RISCV::F2_32,  RISCV::F3_32,
   RISCV::F4_32,  RISCV::F5_32,  RISCV::F6_32,  RISCV::F7_32,
@@ -133,10 +144,21 @@ static DecodeStatus DecodeFPR64RegisterClass(MCInst &Inst, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
+// Add Imply SP operand for SP imply instructions(The instruction SP not encode
+// in bit field)
+static void addImplySP(MCInst &Inst, int64_t Address, const void *Decoder) {
+  if (Inst.getOpcode() == RISCV::CLWSP ||
+      Inst.getOpcode() == RISCV::CSWSP) {
+    DecodeGPRRegisterClass(Inst, 2, Address, Decoder);
+  }
+}
+
 template <unsigned N>
 static DecodeStatus decodeUImmOperand(MCInst &Inst, uint64_t Imm,
                                       int64_t Address, const void *Decoder) {
   assert(isUInt<N>(Imm) && "Invalid immediate");
+
+  addImplySP(Inst, Address, Decoder);
   Inst.addOperand(MCOperand::createImm(Imm));
   return MCDisassembler::Success;
 }
@@ -164,24 +186,70 @@ static DecodeStatus decodeSImmOperandAndLsl1(MCInst &Inst, uint64_t Imm,
 
 #include "RISCVGenDisassemblerTables.inc"
 
-DecodeStatus RISCVDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
-                                               ArrayRef<uint8_t> Bytes,
-                                               uint64_t Address,
-                                               raw_ostream &OS,
-                                               raw_ostream &CS) const {
-  // TODO: although assuming 4-byte instructions is sufficient for RV32 and
-  // RV64, this will need modification when supporting the compressed
-  // instruction set extension (RVC) which uses 16-bit instructions. Other
-  // instruction set extensions have the option of defining instructions up to
-  // 176 bits wide.
-  Size = 4;
+/// Read two bytes from the ArrayRef and return 16 bit halfword
+static DecodeStatus readInstruction16(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                      uint64_t &Size, uint32_t &Insn) {
+  // We want to read exactly 2 Bytes of data.
+  if (Bytes.size() < 2) {
+    Size = 0;
+    return MCDisassembler::Fail;
+  }
+
+  Insn = (Bytes[1] << 8) | Bytes[0];
+
+  return MCDisassembler::Success;
+}
+
+/// Read four bytes from the ArrayRef and return 32 bit word
+static DecodeStatus readInstruction32(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                      uint64_t &Size, uint32_t &Insn) {
+  // We want to read exactly 4 Bytes of data.
   if (Bytes.size() < 4) {
     Size = 0;
     return MCDisassembler::Fail;
   }
 
-  // Get the four bytes of the instruction.
-  uint32_t Inst = support::endian::read32le(Bytes.data());
+  Insn = (Bytes[0] << 0) | (Bytes[1] << 8) | (Bytes[2] << 16) |
+         (Bytes[3] << 24);
 
-  return decodeInstruction(DecoderTable32, MI, Inst, Address, this, STI);
+  return MCDisassembler::Success;
+}
+
+DecodeStatus RISCVDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
+                                               ArrayRef<uint8_t> Bytes,
+                                               uint64_t Address,
+                                               raw_ostream &OS,
+                                               raw_ostream &CS) const {
+  // TODO: This will need modification when supporting the instruction
+  // set extensions have the option of defining instructions up to
+  // 176 bits wide.
+  uint32_t Insn;
+  DecodeStatus Result;
+
+  // It's a 32 bit instruction if bit 0 and 1 is 1.
+  if ((Bytes[0] & 0x3) == 0x3) {
+    Result = readInstruction32(Bytes, Address, Size, Insn);
+    if (Result == MCDisassembler::Fail)
+      return MCDisassembler::Fail;
+
+    DEBUG(dbgs() << "Trying RISCV32 table :\n");
+    Result = decodeInstruction(DecoderTable32, MI, Insn, Address, this, STI);
+    Size = 4;
+  } else {
+    Result = readInstruction16(Bytes, Address, Size, Insn);
+    if (Result == MCDisassembler::Fail)
+      return MCDisassembler::Fail;
+
+    DEBUG(dbgs() << "Trying RISCV_C table (16-bit Instruction):\n");
+    // Calling the auto-generated decoder function.
+    Result =
+      decodeInstruction(DecoderTable16, MI, Insn, Address, this, STI);
+    Size = 2;
+  }
+
+  if (Result != MCDisassembler::Fail) {
+    return Result;
+  }
+
+  return MCDisassembler::Fail;
 }

@@ -226,6 +226,22 @@ public:
            (VK == RISCVMCExpr::VK_RISCV_None || VK == RISCVMCExpr::VK_RISCV_LO);
   }
 
+  bool isUImm8Lsb00() const {
+    int64_t Imm;
+    RISCVMCExpr::VariantKind VK;
+    bool IsConstantImm = evaluateConstantImm(Imm, VK);
+    return IsConstantImm && isShiftedUInt<6, 2>(Imm) &&
+           VK == RISCVMCExpr::VK_RISCV_None;
+  }
+
+  bool isUImm7Lsb00() const {
+    int64_t Imm;
+    RISCVMCExpr::VariantKind VK;
+    bool IsConstantImm = evaluateConstantImm(Imm, VK);
+    return IsConstantImm && isShiftedUInt<5, 2>(Imm) &&
+           VK == RISCVMCExpr::VK_RISCV_None;
+  }
+
   bool isUImm12() const {
     int64_t Imm;
     RISCVMCExpr::VariantKind VK;
@@ -492,6 +508,14 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 20), (1 << 20) - 2,
         "immediate must be a multiple of 2 bytes in the range");
+  case Match_InvalidUImm7Lsb00:
+    return generateImmOutOfRangeError(
+        Operands, ErrorInfo, 0, (1 << 7) - 4,
+        "immediate must be a multiple of 4 bytes in the range");
+  case Match_InvalidUImm8Lsb00:
+    return generateImmOutOfRangeError(
+        Operands, ErrorInfo, 0, (1 << 8) - 4,
+        "immediate must be a multiple of 4 bytes in the range");
   case Match_InvalidFenceArg: {
     SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
     return Error(

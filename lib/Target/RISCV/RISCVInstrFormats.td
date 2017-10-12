@@ -39,7 +39,10 @@ def InstFormatS      : InstFormat<4>;
 def InstFormatB      : InstFormat<5>;
 def InstFormatU      : InstFormat<6>;
 def InstFormatJ      : InstFormat<7>;
-def InstFormatOther  : InstFormat<8>;
+def InstFormatC      : InstFormat<8>;
+def InstFormatCB     : InstFormat<9>;
+def InstFormatCJ     : InstFormat<10>;
+def InstFormatOther  : InstFormat<11>;
 
 // The following opcode names and match those given in Table 19.1 in the
 // RISC-V User-level ISA specification ("RISC-V base opcode map").
