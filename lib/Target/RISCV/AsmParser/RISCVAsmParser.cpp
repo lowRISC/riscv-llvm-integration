@@ -251,6 +251,10 @@ public:
     return IsConstantImm && isUInt<12>(Imm) && VK == RISCVMCExpr::VK_RISCV_None;
   }
 
+  bool isSImm9Lsb0() const { return isBareSimmNLsb0<9>(); }
+
+  bool isSImm12Lsb0() const { return isBareSimmNLsb0<12>(); }
+
   bool isSImm13Lsb0() const { return isBareSimmNLsb0<13>(); }
 
   bool isUImm20() const {
@@ -498,6 +502,14 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                       (1 << 11) - 1);
   case Match_InvalidUImm12:
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 12) - 1);
+  case Match_InvalidSImm9Lsb0:
+    return generateImmOutOfRangeError(
+        Operands, ErrorInfo, -(1 << 8), (1 << 8) - 2,
+        "immediate must be a multiple of 2 bytes in the range");
+  case Match_InvalidSImm12Lsb0:
+    return generateImmOutOfRangeError(
+        Operands, ErrorInfo, -(1 << 11), (1 << 11) - 2,
+        "immediate must be a multiple of 2 bytes in the range");
   case Match_InvalidSImm13Lsb0:
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 12), (1 << 12) - 2,
