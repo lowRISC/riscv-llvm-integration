@@ -23,6 +23,11 @@ def FeatureStdExtA : SubtargetFeature<"a", "HasStdExtA", "true",
 def HasStdExtA     :  Predicate<"Subtarget->hasStdExtA()">,
                            AssemblerPredicate<"FeatureStdExtA">;
 
+def FeatureStdExtC : SubtargetFeature<"c", "HasStdExtC", "true",
+                           "'A' (Atomic Instructions)">;
+def HasStdExtC     :  Predicate<"Subtarget->hasStdExtC()">,
+                           AssemblerPredicate<"FeatureStdExtC">;
+
 def FeatureStdExtF : SubtargetFeature<"f", "HasStdExtF", "true",
                            "'F' (Single-Precision Floating-Point)">;
 def HasStdExtF     :  Predicate<"Subtarget->hasStdExtF()">,

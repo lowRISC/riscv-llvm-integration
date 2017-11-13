@@ -93,6 +93,21 @@ def GPR : RegisterClass<"RISCV", [XLenVT], 32, (add
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
 
+def GPRC : RegisterClass<"RISCV", [XLenVT], 32, (add
+    (sequence "X%u", 10, 15),
+    (sequence "X%u", 8, 9)
+  )> {
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
+def SP : RegisterClass<"RISCV", [XLenVT], 32, (add X2)> {
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
 // Floating point registers
 let RegAltNameIndices = [ABIRegAltName] in {
   def F0_32  : RISCVReg32<0, "f0", ["ft0"]>, DwarfRegNum<[32]>;
