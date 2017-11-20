@@ -107,6 +107,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::CTTZ, XLenVT, Expand);
   setOperationAction(ISD::CTLZ, XLenVT, Expand);
   setOperationAction(ISD::CTPOP, XLenVT, Expand);
+  setOperationAction(ISD::TRAP, MVT::Other, Legal);
 
   ISD::CondCode FPCCToExtend[] = {
       ISD::SETOGT, ISD::SETOGE, ISD::SETONE, ISD::SETO,   ISD::SETUEQ,

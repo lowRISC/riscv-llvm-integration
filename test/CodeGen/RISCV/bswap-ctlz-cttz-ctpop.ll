@@ -11,6 +11,7 @@ declare i32 @llvm.cttz.i32(i32, i1)
 declare i64 @llvm.cttz.i64(i64, i1)
 declare i32 @llvm.ctlz.i32(i32, i1)
 declare i32 @llvm.ctpop.i32(i32)
+declare void @llvm.trap()
 
 define i16 @test_bswap_i16(i16 %a) nounwind {
 ; RV32I-LABEL: test_bswap_i16:
@@ -566,4 +567,13 @@ define i32 @test_ctpop_i32(i32 %a) nounwind {
 ; RV32I-NEXT:    jalr zero, ra, 0
   %1 = call i32 @llvm.ctpop.i32(i32 %a)
   ret i32 %1
+}
+
+define void @test_abort() nounwind {
+; RV32I-LABEL: test_abort:
+; RV32I:       # BB#0
+; RV32I-NEXT:    ebreak
+; RV32I-NEXT:    jalr	zero, ra, 0
+  call void @llvm.trap()
+  ret void
 }

@@ -525,6 +525,9 @@ def ADJCALLSTACKUP   : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
                               [(CallSeqEnd timm:$amt1, timm:$amt2)]>;
 } // Defs = [X2], Uses = [X2]
 
+def : Pat<(trap), (EBREAK)>;
+def : Pat<(debugtrap), (EBREAK)>;
+
 /// RV64 patterns
 
 let Predicates = [IsRV64] in {
