@@ -57,6 +57,49 @@ void RISCVFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   MFI.setStackSize(FrameSize);
 }
 
+void RISCVFrameLowering::adjustReg(MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator MBBI,
+                                   const DebugLoc &DL, unsigned DestReg,
+                                   unsigned SrcReg, int64_t Val,
+                                   MachineInstr::MIFlag Flag) const {
+  MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+  const RISCVInstrInfo *TII = STI.getInstrInfo();
+
+  if (DestReg == SrcReg && Val == 0)
+    return;
+
+  if (isInt<12>(Val)) {
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), DestReg)
+        .addReg(SrcReg)
+        .addImm(Val)
+        .setMIFlag(Flag);
+  } else if (isInt<32>(Val)) {
+    unsigned Opc = RISCV::ADD;
+    bool isSub = Val < 0;
+    if (isSub) {
+      Val = -Val;
+      Opc = RISCV::SUB;
+    }
+
+    unsigned ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    uint64_t Hi20 = ((Val + 0x800) >> 12) & 0xfffff;
+    uint64_t Lo12 = SignExtend64<12>(Val);
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::LUI), ScratchReg)
+        .addImm(Hi20)
+        .setMIFlag(Flag);
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), ScratchReg)
+        .addReg(ScratchReg, RegState::Kill)
+        .addImm(Lo12)
+        .setMIFlag(Flag);
+    BuildMI(MBB, MBBI, DL, TII->get(Opc), DestReg)
+        .addReg(SrcReg)
+        .addReg(ScratchReg, RegState::Kill)
+        .setMIFlag(Flag);
+  } else {
+    report_fatal_error("adjustReg cannot yet handle adjustments >32 bits");
+  }
+}
+
 void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
@@ -67,7 +110,6 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  const RISCVInstrInfo *TII = STI.getInstrInfo();
   auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   MachineBasicBlock::iterator MBBI = MBB.begin();
 
@@ -89,17 +131,8 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   if (StackSize == 0 && !MFI.adjustsStack())
     return;
 
-  if (!isInt<12>(StackSize)) {
-    report_fatal_error("Stack adjustment won't fit in signed 12-bit immediate");
-  }
-
   // Allocate space on the stack if necessary.
-  if (StackSize != 0) {
-    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), SPReg)
-        .addReg(SPReg)
-        .addImm(-StackSize)
-        .setMIFlag(MachineInstr::FrameSetup);
-  }
+  adjustReg(MBB, MBBI, DL, SPReg, SPReg, -StackSize, MachineInstr::FrameSetup);
 
   // The frame pointer is callee-saved, and code has been generated for us to
   // save it to the stack. We need to skip over the storing of callee-saved
@@ -111,10 +144,8 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   std::advance(MBBI, CSI.size());
 
   // Generate new FP.
-  BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), FPReg)
-      .addReg(SPReg)
-      .addImm(StackSize - RVFI->getVarArgsSaveSize())
-      .setMIFlag(MachineInstr::FrameSetup);
+  adjustReg(MBB, MBBI, DL, FPReg, SPReg, StackSize - RVFI->getVarArgsSaveSize(),
+            MachineInstr::FrameSetup);
 }
 
 void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
@@ -125,7 +156,6 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   }
 
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
-  const RISCVInstrInfo *TII = STI.getInstrInfo();
   const RISCVRegisterInfo *RI = STI.getRegisterInfo();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
@@ -145,21 +175,13 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   // necessary if the stack pointer was modified, meaning the stack size is
   // unknown.
   if (RI->needsStackRealignment(MF) || MFI.hasVarSizedObjects()) {
-    BuildMI(MBB, LastFrameDestroy, DL, TII->get(RISCV::ADDI), SPReg)
-        .addReg(FPReg)
-        .addImm(-StackSize + RVFI->getVarArgsSaveSize())
-        .setMIFlag(MachineInstr::FrameDestroy);
-  }
-
-  if (!isInt<12>(StackSize)) {
-    report_fatal_error("Stack adjustment won't fit in signed 12-bit immediate");
+    adjustReg(MBB, LastFrameDestroy, DL, SPReg, FPReg,
+              -StackSize + RVFI->getVarArgsSaveSize(),
+              MachineInstr::FrameDestroy);
   }
 
   // Deallocate stack
-  BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), SPReg)
-      .addReg(SPReg)
-      .addImm(StackSize)
-      .setMIFlag(MachineInstr::FrameDestroy);
+  adjustReg(MBB, MBBI, DL, SPReg, SPReg, StackSize, MachineInstr::FrameDestroy);
 }
 
 int RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF,

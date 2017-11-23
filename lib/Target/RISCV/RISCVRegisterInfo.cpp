@@ -62,6 +62,7 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
@@ -77,30 +78,49 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   assert(TFI->hasFP(MF) && "eliminateFrameIndex currently requires hasFP");
 
-  // Offsets must be directly encoded in a 12-bit immediate field
-  if (!isInt<12>(Offset)) {
+  if (!isInt<32>(Offset)) {
     report_fatal_error(
-        "Frame offsets outside of the signed 12-bit range not supported");
+        "Frame offsets outside of the signed 32-bit range not supported");
   }
 
   MachineBasicBlock &MBB = *MI.getParent();
+  unsigned FrameRegFlags = 0;
+
+  if (!isInt<12>(Offset)) {
+    // The offset won't fit in an immediate, so use a scratch register instead
+    // Modify Offset and FrameReg appropriately
+    unsigned ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    uint64_t Hi20 = ((Offset + 0x800) >> 12) & 0xfffff;
+    uint64_t Lo12 = SignExtend64<12>(Offset);
+    BuildMI(MBB, II, DL, TII->get(RISCV::LUI), ScratchReg).addImm(Hi20);
+    BuildMI(MBB, II, DL, TII->get(RISCV::ADDI), ScratchReg)
+        .addReg(ScratchReg, RegState::Kill)
+        .addImm(Lo12);
+    BuildMI(MBB, II, DL, TII->get(RISCV::ADD), ScratchReg)
+        .addReg(FrameReg)
+        .addReg(ScratchReg, RegState::Kill);
+    Offset = 0;
+    FrameReg = ScratchReg;
+    FrameRegFlags = RegState::Kill;
+  }
+
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Unexpected opcode");
   case RISCV::LW_FI:
     BuildMI(MBB, II, DL, TII->get(RISCV::LW), Reg)
-        .addReg(FrameReg)
+        .addReg(FrameReg, FrameRegFlags)
         .addImm(Offset);
     break;
   case RISCV::SW_FI:
     BuildMI(MBB, II, DL, TII->get(RISCV::SW))
         .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
-        .addReg(FrameReg)
+        .addReg(FrameReg, FrameRegFlags | RegState::Kill)
         .addImm(Offset);
     break;
   case RISCV::LEA_FI:
     BuildMI(MBB, II, DL, TII->get(RISCV::ADDI), Reg)
-        .addReg(FrameReg)
+        .addReg(FrameReg, FrameRegFlags)
         .addImm(Offset);
     break;
   }
