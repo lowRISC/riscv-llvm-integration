@@ -13,6 +13,7 @@
 
 #include "RISCVRegisterInfo.h"
 #include "RISCV.h"
+#include "RISCVMachineFunctionInfo.h"
 #include "RISCVSubtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
