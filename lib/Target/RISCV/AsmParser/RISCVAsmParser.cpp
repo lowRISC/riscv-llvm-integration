@@ -185,6 +185,20 @@ public:
     return true;
   }
 
+  /// Return true if the operand is a valid floating point rounding mode.
+  bool isFRMArg() const {
+    if (!isImm())
+      return false;
+    const MCExpr *Val = getImm();
+    auto *SVal = dyn_cast<MCSymbolRefExpr>(Val);
+    if (!SVal || SVal->getKind() != MCSymbolRefExpr::VK_None)
+      return false;
+
+    StringRef Str = SVal->getSymbol().getName();
+
+    return RISCVFPRndMode::stringToRoundingMode(Str) != RISCVFPRndMode::Invalid;
+  }
+
   bool isUImm5() const {
     int64_t Imm;
     RISCVMCExpr::VariantKind VK;
@@ -344,6 +358,17 @@ public:
     }
     Inst.addOperand(MCOperand::createImm(Imm));
   }
+
+  void addFRMArgOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    // isFRMArg has validated the operand, meaning this cast is safe.
+    auto SE = cast<MCSymbolRefExpr>(getImm());
+
+    RISCVFPRndMode::RoundingMode FRM =
+        RISCVFPRndMode::stringToRoundingMode(SE->getSymbol().getName());
+    assert(FRM != RISCVFPRndMode::Invalid && "Invalid rounding mode");
+    Inst.addOperand(MCOperand::createImm(FRM));
+  }
 };
 } // end anonymous namespace.
 
@@ -410,6 +435,12 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return Error(
         ErrorLoc,
         "operand must be formed of letters selected in-order from 'iorw'");
+  }
+  case Match_InvalidFRMArg: {
+    SMLoc ErrorLoc = ((RISCVOperand &)*Operands[ErrorInfo]).getStartLoc();
+    return Error(
+        ErrorLoc,
+        "operand must be a valid floating point rounding mode mnemonic");
   }
   }
 
