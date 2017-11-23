@@ -30,7 +30,7 @@ class RISCVDAGToDAGISel final : public SelectionDAGISel {
 
 public:
   explicit RISCVDAGToDAGISel(RISCVTargetMachine &TargetMachine)
-      : SelectionDAGISel(TargetMachine) {}
+      : SelectionDAGISel(TargetMachine), Subtarget(nullptr) {}
 
   StringRef getPassName() const override {
     return "RISCV DAG->DAG Pattern Instruction Selection";
