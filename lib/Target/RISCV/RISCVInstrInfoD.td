@@ -159,3 +159,28 @@ def FMV_D_X : FPUnaryOp_r<0b1111001, 0b000, FPR64, GPR, "fmv.d.x"> {
   let rs2 = 0b00000;
 }
 } // Predicates = [HasStdExtD, IsRV64]
+
+//===----------------------------------------------------------------------===//
+// Pseudo-instructions and codegen patterns
+//===----------------------------------------------------------------------===//
+
+class PatFpr64Fpr64DynFrm<SDPatternOperator OpNode, RVInstRFrm Inst>
+    : Pat<(OpNode FPR64:$rs1, FPR64:$rs2), (Inst $rs1, $rs2, 0b111)>;
+
+let Predicates = [HasStdExtD] in {
+
+/// Float arithmetic operations
+
+def : PatFpr64Fpr64DynFrm<fadd, FADD_D>;
+
+/// Loads
+
+def LdFPR64_FI : Pseudo<(outs FPR64:$dst), (ins MEMii:$addr),
+                        [(set FPR64:$dst, (load ADDRii:$addr))]>;
+
+/// Stores
+
+def StFPR64_FI : Pseudo<(outs), (ins FPR64:$src, MEMii:$addr),
+                        [(store FPR64:$src, ADDRii:$addr)]>;
+
+} // Predicates = [HasStdExtD]

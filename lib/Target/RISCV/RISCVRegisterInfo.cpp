@@ -117,6 +117,11 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
         .addReg(FrameReg, FrameRegFlags)
         .addImm(Offset);
     break;
+  case RISCV::LdFPR64_FI:
+    BuildMI(MBB, II, DL, TII->get(RISCV::FLD), Reg)
+        .addReg(FrameReg, FrameRegFlags)
+        .addImm(Offset);
+    break;
   case RISCV::StXLEN_FI:
     Opc = Subtarget.is64Bit() ? RISCV::SD : RISCV::SW;
     BuildMI(MBB, II, DL, TII->get(Opc))
@@ -126,6 +131,12 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     break;
   case RISCV::StFPR32_FI:
     BuildMI(MBB, II, DL, TII->get(RISCV::FSW))
+        .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
+        .addReg(FrameReg, FrameRegFlags | RegState::Kill)
+        .addImm(Offset);
+    break;
+  case RISCV::StFPR64_FI:
+    BuildMI(MBB, II, DL, TII->get(RISCV::FSD))
         .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
         .addReg(FrameReg, FrameRegFlags | RegState::Kill)
         .addImm(Offset);
