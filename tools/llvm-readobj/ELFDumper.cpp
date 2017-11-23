@@ -995,6 +995,7 @@ static const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_78KOR,         "EM_78KOR"),
   ENUM_ENT(EM_56800EX,       "EM_56800EX"),
   ENUM_ENT(EM_AMDGPU,        "EM_AMDGPU"),
+  ENUM_ENT(EM_RISCV,         "RISC-V"),
   ENUM_ENT(EM_WEBASSEMBLY,   "EM_WEBASSEMBLY"),
   ENUM_ENT(EM_LANAI,         "EM_LANAI"),
   ENUM_ENT(EM_BPF,           "EM_BPF"),
@@ -1246,6 +1247,14 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlags[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_ARCH_NONE),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_ARCH_R600),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_ARCH_GCN)
+};
+
+static const EnumEntry<unsigned> ElfHeaderRISCVFlags[] = {
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_RISCV_RVC),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_RISCV_FLOAT_ABI_SINGLE),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_RISCV_FLOAT_ABI_DOUBLE),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_RISCV_FLOAT_ABI_QUAD),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_RISCV_RVE)
 };
 
 static const EnumEntry<unsigned> ElfSymOtherFlags[] = {
@@ -3611,6 +3620,8 @@ template <class ELFT> void LLVMStyle<ELFT>::printFileHeaders(const ELFO *Obj) {
     else if (e->e_machine == EM_AMDGPU)
       W.printFlags("Flags", e->e_flags, makeArrayRef(ElfHeaderAMDGPUFlags),
                    unsigned(ELF::EF_AMDGPU_ARCH));
+    else if (e->e_machine == EM_RISCV)
+      W.printFlags("Flags", e->e_flags, makeArrayRef(ElfHeaderRISCVFlags));
     else
       W.printFlags("Flags", e->e_flags);
     W.printNumber("HeaderSize", e->e_ehsize);
