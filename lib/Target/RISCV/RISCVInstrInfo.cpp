@@ -54,7 +54,7 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     DL = I->getDebugLoc();
 
   if (RC == &RISCV::GPRRegClass)
-    BuildMI(MBB, I, DL, get(RISCV::SW_FI))
+    BuildMI(MBB, I, DL, get(RISCV::StXLEN_FI))
         .addReg(SrcReg, getKillRegState(IsKill))
         .addFrameIndex(FI)
         .addImm(0);
@@ -72,7 +72,9 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     DL = I->getDebugLoc();
 
   if (RC == &RISCV::GPRRegClass)
-    BuildMI(MBB, I, DL, get(RISCV::LW_FI), DstReg).addFrameIndex(FI).addImm(0);
+    BuildMI(MBB, I, DL, get(RISCV::LdXLEN_FI), DstReg)
+        .addFrameIndex(FI)
+        .addImm(0);
   else
     llvm_unreachable("Can't load this register from stack slot");
 }
@@ -286,9 +288,8 @@ unsigned RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   MachineFunction *MF = MBB.getParent();
   MachineRegisterInfo &MRI = MF->getRegInfo();
   const auto &TM = static_cast<const RISCVTargetMachine &>(MF->getTarget());
-  const auto &STI = MF->getSubtarget<RISCVSubtarget>();
 
-  if (TM.isPositionIndependent() || STI.is64Bit())
+  if (TM.isPositionIndependent())
     report_fatal_error("Unable to insert indirect branch");
 
   if (!isInt<32>(BrOffset))

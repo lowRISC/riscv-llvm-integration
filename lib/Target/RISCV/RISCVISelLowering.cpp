@@ -183,7 +183,7 @@ SDValue RISCVTargetLowering::lowerGlobalAddress(SDValue Op,
   const GlobalValue *GV = N->getGlobal();
   int64_t Offset = N->getOffset();
 
-  if (isPositionIndependent() || Subtarget.is64Bit())
+  if (isPositionIndependent())
     report_fatal_error("Unable to lowerGlobalAddress");
 
   SDValue GAHi =
@@ -204,7 +204,7 @@ SDValue RISCVTargetLowering::lowerBlockAddress(SDValue Op,
   const BlockAddress *BA = N->getBlockAddress();
   int64_t Offset = N->getOffset();
 
-  if (isPositionIndependent() || Subtarget.is64Bit())
+  if (isPositionIndependent())
     report_fatal_error("Unable to lowerBlockAddress");
 
   SDValue BAHi = DAG.getTargetBlockAddress(BA, Ty, Offset, RISCVII::MO_HI);
@@ -224,7 +224,7 @@ SDValue RISCVTargetLowering::lowerExternalSymbol(SDValue Op,
 
   // TODO: should also handle gp-relative loads.
 
-  if (isPositionIndependent() || Subtarget.is64Bit())
+  if (isPositionIndependent())
     report_fatal_error("Unable to lowerExternalSymbol");
 
   SDValue GAHi = DAG.getTargetExternalSymbol(Sym, Ty, RISCVII::MO_HI);
@@ -686,9 +686,8 @@ SDValue RISCVTargetLowering::LowerFormalArguments(
 
   MachineFunction &MF = DAG.getMachineFunction();
   MVT XLenVT = Subtarget.getXLenVT();
+  unsigned XLenInBytes = Subtarget.getXLen() / 8;
   EVT PtrVT = getPointerTy(DAG.getDataLayout());
-  unsigned XLen = DAG.getDataLayout().getLargestLegalIntTypeSizeInBits();
-  unsigned XLenInBytes = XLen / 8;
   // Used with vargs to acumulate store chains.
   std::vector<SDValue> OutChains;
 
