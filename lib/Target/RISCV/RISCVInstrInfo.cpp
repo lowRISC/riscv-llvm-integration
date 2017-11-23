@@ -72,6 +72,8 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     Opcode = RISCV::StXLEN_FI;
   else if (RC == &RISCV::FPR32RegClass)
     Opcode = RISCV::StFPR32_FI;
+  else if (RC == &RISCV::FPR64RegClass)
+    Opcode = RISCV::StFPR64_FI;
   else
     llvm_unreachable("Can't store this register to stack slot");
 
@@ -96,6 +98,8 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     Opcode = RISCV::LdXLEN_FI;
   else if (RC == &RISCV::FPR32RegClass)
     Opcode = RISCV::LdFPR32_FI;
+  else if (RC == &RISCV::FPR64RegClass)
+    Opcode = RISCV::LdFPR64_FI;
   else
     llvm_unreachable("Can't load this register from stack slot");
 

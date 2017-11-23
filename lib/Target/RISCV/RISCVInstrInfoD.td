@@ -232,10 +232,16 @@ def Select_FPR64_Using_CC_GPR : SelectCC_rrirr<FPR64, GPR>;
 
 /// Loads
 
+defm : LdPat<load, FLD>;
+
 def LdFPR64_FI : Pseudo<(outs FPR64:$dst), (ins MEMii:$addr),
                         [(set FPR64:$dst, (load ADDRii:$addr))]>;
 
 /// Stores
+
+def : Pat<(store FPR64:$rs2, GPR:$rs1), (FSD FPR64:$rs2, GPR:$rs1, 0)>;
+def : Pat<(store FPR64:$rs2, (add GPR:$rs1, simm12:$imm12)),
+            (FSD FPR64:$rs2, GPR:$rs1, simm12:$imm12)>;
 
 def StFPR64_FI : Pseudo<(outs), (ins FPR64:$src, MEMii:$addr),
                         [(store FPR64:$src, ADDRii:$addr)]>;
