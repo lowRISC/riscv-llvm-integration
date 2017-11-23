@@ -1170,6 +1170,12 @@ class AsmParser {
   // several registers share the same alias (i.e. not a 1:1 mapping).
   bit ShouldEmitMatchRegisterAltName = 0;
 
+  // Set to true if MatchRegisterName and MatchRegisterAltName functions
+  // should be generated even if there are duplicate register names. The
+  // target is responsible for coercing aliased registers as necessary
+  // (e.g. in validateTargetOperandClass).
+  bit AllowDuplicateRegisterNames = 0;
+
   // HasMnemonicFirst - Set to false if target instructions don't always
   // start with a mnemonic as the first token.
   bit HasMnemonicFirst = 1;
