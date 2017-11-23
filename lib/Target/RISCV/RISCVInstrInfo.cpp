@@ -53,7 +53,7 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     DL = I->getDebugLoc();
 
   if (RC == &RISCV::GPRRegClass)
-    BuildMI(MBB, I, DL, get(RISCV::SW))
+    BuildMI(MBB, I, DL, get(RISCV::SW_FI))
         .addReg(SrcReg, getKillRegState(IsKill))
         .addFrameIndex(FI)
         .addImm(0);
@@ -71,7 +71,7 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     DL = I->getDebugLoc();
 
   if (RC == &RISCV::GPRRegClass)
-    BuildMI(MBB, I, DL, get(RISCV::LW), DstReg).addFrameIndex(FI).addImm(0);
+    BuildMI(MBB, I, DL, get(RISCV::LW_FI), DstReg).addFrameIndex(FI).addImm(0);
   else
     llvm_unreachable("Can't load this register from stack slot");
 }
