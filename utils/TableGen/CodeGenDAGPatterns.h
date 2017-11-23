@@ -25,6 +25,7 @@
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <map>
 #include <set>
 #include <vector>
@@ -447,17 +448,16 @@ public:
   /// isAlwaysTrue - Return true if this is a noop predicate.
   bool isAlwaysTrue() const;
 
-  bool isImmediatePattern() const { return !getImmCode().empty(); }
+  bool isImmediatePattern() const { return hasImmCode(); }
 
   /// getImmediatePredicateCode - Return the code that evaluates this pattern if
   /// this is an immediate predicate.  It is an error to call this on a
   /// non-immediate pattern.
-  StringRef getImmediatePredicateCode() const {
-    StringRef Result = getImmCode();
+  std::string getImmediatePredicateCode() const {
+    std::string Result = getImmCode();
     assert(!Result.empty() && "Isn't an immediate pattern!");
     return Result;
   }
-
 
   bool operator==(const TreePredicateFn &RHS) const {
     return PatFragRec == RHS.PatFragRec;
@@ -475,9 +475,64 @@ public:
   /// appropriate.
   std::string getCodeToRunOnSDNode() const;
 
+  /// Get the data type of the argument to getImmediatePredicateCode().
+  StringRef getImmType() const;
+
+  /// Get a string that describes the type returned by getImmType() but is
+  /// usable as part of an identifier.
+  StringRef getImmTypeIdentifier() const;
+
+  // Is the desired predefined predicate for a load?
+  bool isLoad() const;
+  // Is the desired predefined predicate for a store?
+  bool isStore() const;
+  // Is the desired predefined predicate for an atomic?
+  bool isAtomic() const;
+
+  /// Is this predicate the predefined unindexed load predicate?
+  /// Is this predicate the predefined unindexed store predicate?
+  bool isUnindexed() const;
+  /// Is this predicate the predefined non-extending load predicate?
+  bool isNonExtLoad() const;
+  /// Is this predicate the predefined any-extend load predicate?
+  bool isAnyExtLoad() const;
+  /// Is this predicate the predefined sign-extend load predicate?
+  bool isSignExtLoad() const;
+  /// Is this predicate the predefined zero-extend load predicate?
+  bool isZeroExtLoad() const;
+  /// Is this predicate the predefined non-truncating store predicate?
+  bool isNonTruncStore() const;
+  /// Is this predicate the predefined truncating store predicate?
+  bool isTruncStore() const;
+
+  /// Is this predicate the predefined monotonic atomic predicate?
+  bool isAtomicOrderingMonotonic() const;
+  /// Is this predicate the predefined acquire atomic predicate?
+  bool isAtomicOrderingAcquire() const;
+  /// Is this predicate the predefined release atomic predicate?
+  bool isAtomicOrderingRelease() const;
+  /// Is this predicate the predefined acquire-release atomic predicate?
+  bool isAtomicOrderingAcquireRelease() const;
+  /// Is this predicate the predefined sequentially consistent atomic predicate?
+  bool isAtomicOrderingSequentiallyConsistent() const;
+
+  /// If non-null, indicates that this predicate is a predefined memory VT
+  /// predicate for a load/store and returns the ValueType record for the memory VT.
+  Record *getMemoryVT() const;
+  /// If non-null, indicates that this predicate is a predefined memory VT
+  /// predicate (checking only the scalar type) for load/store and returns the
+  /// ValueType record for the memory VT.
+  Record *getScalarMemoryVT() const;
+
 private:
-  StringRef getPredCode() const;
-  StringRef getImmCode() const;
+  bool hasPredCode() const;
+  bool hasImmCode() const;
+  std::string getPredCode() const;
+  std::string getImmCode() const;
+  bool immCodeUsesAPInt() const;
+  bool immCodeUsesAPFloat() const;
+
+  bool isPredefinedPredicateEqualTo(StringRef Field, bool Value) const;
 };
 
 
@@ -739,6 +794,7 @@ public:
   const std::vector<TreePatternNode*> &getTrees() const { return Trees; }
   unsigned getNumTrees() const { return Trees.size(); }
   TreePatternNode *getTree(unsigned i) const { return Trees[i]; }
+  void setTree(unsigned i, TreePatternNode *Tree) { Trees[i] = Tree; }
   TreePatternNode *getOnlyTree() const {
     assert(Trees.size() == 1 && "Doesn't have exactly one pattern!");
     return Trees[0];
@@ -988,14 +1044,18 @@ class CodeGenDAGPatterns {
 
   TypeSetByHwMode LegalVTS;
 
+  using PatternRewriterFn = std::function<void (TreePattern *)>;
+  PatternRewriterFn PatternRewriter;
+
 public:
-  CodeGenDAGPatterns(RecordKeeper &R);
+  CodeGenDAGPatterns(RecordKeeper &R,
+                     PatternRewriterFn PatternRewriter = nullptr);
 
   CodeGenTarget &getTargetInfo() { return Target; }
   const CodeGenTarget &getTargetInfo() const { return Target; }
   const TypeSetByHwMode &getLegalTypes() const { return LegalVTS; }
 
-  Record *getSDNodeNamed(StringRef Name) const;
+  Record *getSDNodeNamed(const std::string &Name) const;
 
   const SDNodeInfo &getSDNodeInfo(Record *R) const {
     auto F = SDNodes.find(R);

@@ -40,8 +40,10 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   SDValue Res = SDValue();
 
   // See if the target wants to custom expand this node.
-  if (CustomLowerNode(N, N->getValueType(ResNo), true))
+  if (CustomLowerNode(N, N->getValueType(ResNo), true)) {
+    DEBUG(dbgs() << "Node has been custom expanded, done\n");
     return;
+  }
 
   switch (N->getOpcode()) {
   default:
@@ -568,12 +570,11 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SELECT(SDNode *N) {
 
 SDValue DAGTypeLegalizer::PromoteIntRes_VSELECT(SDNode *N) {
   SDValue Mask = N->getOperand(0);
-  EVT OpTy = N->getOperand(1).getValueType();
 
-  // Promote all the way up to the canonical SetCC type.
-  Mask = PromoteTargetBoolean(Mask, OpTy);
   SDValue LHS = GetPromotedInteger(N->getOperand(1));
   SDValue RHS = GetPromotedInteger(N->getOperand(2));
+  // Promote all the way up to the canonical SetCC type.
+  Mask = PromoteTargetBoolean(Mask, LHS.getValueType());
   return DAG.getNode(ISD::VSELECT, SDLoc(N),
                      LHS.getValueType(), Mask, LHS, RHS);
 }
@@ -885,8 +886,10 @@ bool DAGTypeLegalizer::PromoteIntegerOperand(SDNode *N, unsigned OpNo) {
   DEBUG(dbgs() << "Promote integer operand: "; N->dump(&DAG); dbgs() << "\n");
   SDValue Res = SDValue();
 
-  if (CustomLowerNode(N, N->getOperand(OpNo).getValueType(), false))
+  if (CustomLowerNode(N, N->getOperand(OpNo).getValueType(), false)) {
+    DEBUG(dbgs() << "Node has been custom lowered, done\n");
     return false;
+  }
 
   switch (N->getOpcode()) {
     default:
@@ -941,6 +944,12 @@ bool DAGTypeLegalizer::PromoteIntegerOperand(SDNode *N, unsigned OpNo) {
 
   case ISD::ADDCARRY:
   case ISD::SUBCARRY: Res = PromoteIntOp_ADDSUBCARRY(N, OpNo); break;
+
+  case ISD::FRAMEADDR:
+  case ISD::RETURNADDR: Res = PromoteIntOp_RETURNADDR(N, OpNo); break;
+  case ISD::PREFETCH:
+    Res = PromoteIntOp_PREFETCH(N, OpNo);
+    break;
   }
 
   // If the result is null, the sub-method took care of registering results etc.
@@ -1316,6 +1325,23 @@ SDValue DAGTypeLegalizer::PromoteIntOp_ADDSUBCARRY(SDNode *N, unsigned OpNo) {
   }
 
   return SDValue(DAG.UpdateNodeOperands(N, LHS, RHS, Carry), 0);
+}
+
+SDValue DAGTypeLegalizer::PromoteIntOp_RETURNADDR(SDNode *N, unsigned OpNo) {
+  // Promote the RETURNADDR/FRAMEADDR argument to a supported integer width.
+  SDValue Op = GetPromotedInteger(N->getOperand(0));
+  return SDValue(DAG.UpdateNodeOperands(N, Op), 0);
+}
+
+SDValue DAGTypeLegalizer::PromoteIntOp_PREFETCH(SDNode *N, unsigned OpNo) {
+  // Promote the rw, locality, and cache type arguments to a supported integer
+  // width.
+  SDValue Op2 = GetPromotedInteger(N->getOperand(2));
+  SDValue Op3 = GetPromotedInteger(N->getOperand(3));
+  SDValue Op4 = GetPromotedInteger(N->getOperand(4));
+  return SDValue(DAG.UpdateNodeOperands(N, N->getOperand(0), N->getOperand(1),
+                                        Op2, Op3, Op4),
+                 0);
 }
 
 //===----------------------------------------------------------------------===//

@@ -56,22 +56,21 @@ extern "C" void LLVMInitializeRISCVDisassembler() {
 }
 
 static const unsigned GPRDecoderTable[] = {
-  RISCV::X0_32,  RISCV::X1_32,  RISCV::X2_32,  RISCV::X3_32,
-  RISCV::X4_32,  RISCV::X5_32,  RISCV::X6_32,  RISCV::X7_32,
-  RISCV::X8_32,  RISCV::X9_32,  RISCV::X10_32, RISCV::X11_32,
-  RISCV::X12_32, RISCV::X13_32, RISCV::X14_32, RISCV::X15_32,
-  RISCV::X16_32, RISCV::X17_32, RISCV::X18_32, RISCV::X19_32,
-  RISCV::X20_32, RISCV::X21_32, RISCV::X22_32, RISCV::X23_32,
-  RISCV::X24_32, RISCV::X25_32, RISCV::X26_32, RISCV::X27_32,
-  RISCV::X28_32, RISCV::X29_32, RISCV::X30_32, RISCV::X31_32
+  RISCV::X0,  RISCV::X1,  RISCV::X2,  RISCV::X3,
+  RISCV::X4,  RISCV::X5,  RISCV::X6,  RISCV::X7,
+  RISCV::X8,  RISCV::X9,  RISCV::X10, RISCV::X11,
+  RISCV::X12, RISCV::X13, RISCV::X14, RISCV::X15,
+  RISCV::X16, RISCV::X17, RISCV::X18, RISCV::X19,
+  RISCV::X20, RISCV::X21, RISCV::X22, RISCV::X23,
+  RISCV::X24, RISCV::X25, RISCV::X26, RISCV::X27,
+  RISCV::X28, RISCV::X29, RISCV::X30, RISCV::X31
 };
 
 static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint64_t RegNo,
                                            uint64_t Address,
                                            const void *Decoder) {
-   if (RegNo > sizeof(GPRDecoderTable)) {
+   if (RegNo > sizeof(GPRDecoderTable))
      return MCDisassembler::Fail;
-   }
 
    // We must define our own mapping from RegNo to register identifier.
    // Accessing index RegNo in the register class will work in the case that
@@ -79,6 +78,56 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint64_t RegNo,
    unsigned Reg = GPRDecoderTable[RegNo];
    Inst.addOperand(MCOperand::createReg(Reg));
    return MCDisassembler::Success;
+}
+
+static const unsigned FPR32DecoderTable[] = {
+  RISCV::F0_32,  RISCV::F1_32,  RISCV::F2_32,  RISCV::F3_32,
+  RISCV::F4_32,  RISCV::F5_32,  RISCV::F6_32,  RISCV::F7_32,
+  RISCV::F8_32,  RISCV::F9_32,  RISCV::F10_32, RISCV::F11_32,
+  RISCV::F12_32, RISCV::F13_32, RISCV::F14_32, RISCV::F15_32,
+  RISCV::F16_32, RISCV::F17_32, RISCV::F18_32, RISCV::F19_32,
+  RISCV::F20_32, RISCV::F21_32, RISCV::F22_32, RISCV::F23_32,
+  RISCV::F24_32, RISCV::F25_32, RISCV::F26_32, RISCV::F27_32,
+  RISCV::F28_32, RISCV::F29_32, RISCV::F30_32, RISCV::F31_32
+};
+
+static DecodeStatus DecodeFPR32RegisterClass(MCInst &Inst, uint64_t RegNo,
+                                             uint64_t Address,
+                                             const void *Decoder) {
+  if (RegNo > sizeof(FPR32DecoderTable))
+    return MCDisassembler::Fail;
+
+  // We must define our own mapping from RegNo to register identifier.
+  // Accessing index RegNo in the register class will work in the case that
+  // registers were added in ascending order, but not in general.
+  unsigned Reg = FPR32DecoderTable[RegNo];
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
+}
+
+static const unsigned FPR64DecoderTable[] = {
+  RISCV::F0_64,  RISCV::F1_64,  RISCV::F2_64,  RISCV::F3_64,
+  RISCV::F4_64,  RISCV::F5_64,  RISCV::F6_64,  RISCV::F7_64,
+  RISCV::F8_64,  RISCV::F9_64,  RISCV::F10_64, RISCV::F11_64,
+  RISCV::F12_64, RISCV::F13_64, RISCV::F14_64, RISCV::F15_64,
+  RISCV::F16_64, RISCV::F17_64, RISCV::F18_64, RISCV::F19_64,
+  RISCV::F20_64, RISCV::F21_64, RISCV::F22_64, RISCV::F23_64,
+  RISCV::F24_64, RISCV::F25_64, RISCV::F26_64, RISCV::F27_64,
+  RISCV::F28_64, RISCV::F29_64, RISCV::F30_64, RISCV::F31_64
+};
+
+static DecodeStatus DecodeFPR64RegisterClass(MCInst &Inst, uint64_t RegNo,
+                                             uint64_t Address,
+                                             const void *Decoder) {
+  if (RegNo > sizeof(FPR64DecoderTable))
+    return MCDisassembler::Fail;
+
+  // We must define our own mapping from RegNo to register identifier.
+  // Accessing index RegNo in the register class will work in the case that
+  // registers were added in ascending order, but not in general.
+  unsigned Reg = FPR64DecoderTable[RegNo];
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
 }
 
 template <unsigned N>

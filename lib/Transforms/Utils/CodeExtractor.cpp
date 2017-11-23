@@ -14,34 +14,57 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/CodeExtractor.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BlockFrequencyInfoImpl.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/RegionInfo.h"
-#include "llvm/Analysis/RegionIterator.h"
+#include "llvm/IR/Argument.h"
+#include "llvm/IR/Attributes.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CFG.h"
+#include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/User.h"
+#include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/BlockFrequency.h"
+#include "llvm/Support/BranchProbability.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <iterator>
+#include <map>
 #include <set>
+#include <utility>
+#include <vector>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "code-extractor"
@@ -55,7 +78,8 @@ AggregateArgsOpt("aggregate-extracted-args", cl::Hidden,
                  cl::desc("Aggregate arguments to code-extracted functions"));
 
 /// \brief Test whether a block is valid for extraction.
-bool CodeExtractor::isBlockValidForExtraction(const BasicBlock &BB) {
+bool CodeExtractor::isBlockValidForExtraction(const BasicBlock &BB,
+                                              bool AllowVarArgs) {
   // Landing pads must be in the function where they were inserted for cleanup.
   if (BB.isEHPad())
     return false;
@@ -87,14 +111,19 @@ bool CodeExtractor::isBlockValidForExtraction(const BasicBlock &BB) {
     }
   }
 
-  // Don't hoist code containing allocas, invokes, or vastarts.
+  // Don't hoist code containing allocas or invokes. If explicitly requested,
+  // allow vastart.
   for (BasicBlock::const_iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
     if (isa<AllocaInst>(I) || isa<InvokeInst>(I))
       return false;
     if (const CallInst *CI = dyn_cast<CallInst>(I))
       if (const Function *F = CI->getCalledFunction())
-        if (F->getIntrinsicID() == Intrinsic::vastart)
-          return false;
+        if (F->getIntrinsicID() == Intrinsic::vastart) {
+          if (AllowVarArgs)
+            continue;
+          else
+            return false;
+        }
   }
 
   return true;
@@ -102,21 +131,21 @@ bool CodeExtractor::isBlockValidForExtraction(const BasicBlock &BB) {
 
 /// \brief Build a set of blocks to extract if the input blocks are viable.
 static SetVector<BasicBlock *>
-buildExtractionBlockSet(ArrayRef<BasicBlock *> BBs, DominatorTree *DT) {
+buildExtractionBlockSet(ArrayRef<BasicBlock *> BBs, DominatorTree *DT,
+                        bool AllowVarArgs) {
   assert(!BBs.empty() && "The set of blocks to extract must be non-empty");
   SetVector<BasicBlock *> Result;
 
   // Loop over the blocks, adding them to our set-vector, and aborting with an
   // empty set if we encounter invalid blocks.
   for (BasicBlock *BB : BBs) {
-
     // If this block is dead, don't process it.
     if (DT && !DT->isReachableFromEntry(BB))
       continue;
 
     if (!Result.insert(BB))
       llvm_unreachable("Repeated basic blocks in extraction input");
-    if (!CodeExtractor::isBlockValidForExtraction(*BB)) {
+    if (!CodeExtractor::isBlockValidForExtraction(*BB, AllowVarArgs)) {
       Result.clear();
       return Result;
     }
@@ -138,16 +167,18 @@ buildExtractionBlockSet(ArrayRef<BasicBlock *> BBs, DominatorTree *DT) {
 
 CodeExtractor::CodeExtractor(ArrayRef<BasicBlock *> BBs, DominatorTree *DT,
                              bool AggregateArgs, BlockFrequencyInfo *BFI,
-                             BranchProbabilityInfo *BPI)
+                             BranchProbabilityInfo *BPI, bool AllowVarArgs)
     : DT(DT), AggregateArgs(AggregateArgs || AggregateArgsOpt), BFI(BFI),
-      BPI(BPI), Blocks(buildExtractionBlockSet(BBs, DT)), NumExitBlocks(~0U) {}
+      BPI(BPI), AllowVarArgs(AllowVarArgs),
+      Blocks(buildExtractionBlockSet(BBs, DT, AllowVarArgs)) {}
 
 CodeExtractor::CodeExtractor(DominatorTree &DT, Loop &L, bool AggregateArgs,
                              BlockFrequencyInfo *BFI,
                              BranchProbabilityInfo *BPI)
     : DT(&DT), AggregateArgs(AggregateArgs || AggregateArgsOpt), BFI(BFI),
-      BPI(BPI), Blocks(buildExtractionBlockSet(L.getBlocks(), &DT)),
-      NumExitBlocks(~0U) {}
+      BPI(BPI), AllowVarArgs(false),
+      Blocks(buildExtractionBlockSet(L.getBlocks(), &DT,
+                                     /* AllowVarArgs */ false)) {}
 
 /// definedInRegion - Return true if the specified value is defined in the
 /// extracted region.
@@ -202,7 +233,6 @@ bool CodeExtractor::isLegalToShrinkwrapLifetimeMarkers(
     if (Blocks.count(&BB))
       continue;
     for (Instruction &II : BB) {
-
       if (isa<DbgInfoIntrinsic>(II))
         continue;
 
@@ -287,7 +317,9 @@ CodeExtractor::findOrCreateBlockForHoisting(BasicBlock *CommonExitBlock) {
   BasicBlock *NewExitBlock = CommonExitBlock->splitBasicBlock(
       CommonExitBlock->getFirstNonPHI()->getIterator());
 
-  for (auto *Pred : predecessors(CommonExitBlock)) {
+  for (auto PI = pred_begin(CommonExitBlock), PE = pred_end(CommonExitBlock);
+       PI != PE;) {
+    BasicBlock *Pred = *PI++;
     if (Blocks.count(Pred))
       continue;
     Pred->getTerminator()->replaceUsesOfWith(CommonExitBlock, NewExitBlock);
@@ -373,7 +405,6 @@ void CodeExtractor::findAllocas(ValueSet &SinkCands, ValueSet &HoistCands,
       // Follow the bitcast.
       Instruction *MarkerAddr = nullptr;
       for (User *U : AI->users()) {
-
         if (U->stripInBoundsConstantOffsets() == AI) {
           SinkLifeStart = false;
           HoistLifeEnd = false;
@@ -407,7 +438,6 @@ void CodeExtractor::findAllocas(ValueSet &SinkCands, ValueSet &HoistCands,
 
 void CodeExtractor::findInputsOutputs(ValueSet &Inputs, ValueSet &Outputs,
                                       const ValueSet &SinkCands) const {
-
   for (BasicBlock *BB : Blocks) {
     // If a used value is defined outside the region, it's an input.  If an
     // instruction is used outside the region, it's an output.
@@ -457,7 +487,7 @@ void CodeExtractor::severSplitPHINodes(BasicBlock *&Header) {
   // containing PHI nodes merging values from outside of the region, and a
   // second that contains all of the code for the block and merges back any
   // incoming values from inside of the region.
-  BasicBlock *NewBB = llvm::SplitBlock(Header, Header->getFirstNonPHI(), DT);
+  BasicBlock *NewBB = SplitBlock(Header, Header->getFirstNonPHI(), DT);
 
   // We only want to code extract the second block now, and it becomes the new
   // header of the region.
@@ -525,7 +555,6 @@ void CodeExtractor::splitReturnBlocks() {
 
 /// constructFunction - make a function based on inputs and outputs, as follows:
 /// f(in0, ..., inN, out0, ..., outN)
-///
 Function *CodeExtractor::constructFunction(const ValueSet &inputs,
                                            const ValueSet &outputs,
                                            BasicBlock *header,
@@ -544,7 +573,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
   default: RetTy = Type::getInt16Ty(header->getContext()); break;
   }
 
-  std::vector<Type*> paramTy;
+  std::vector<Type *> paramTy;
 
   // Add the types of the input values to the function's argument list
   for (Value *value : inputs) {
@@ -575,7 +604,8 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
     paramTy.push_back(PointerType::getUnqual(StructTy));
   }
   FunctionType *funcType =
-                  FunctionType::get(RetTy, paramTy, false);
+                  FunctionType::get(RetTy, paramTy,
+                                    AllowVarArgs && oldFunction->isVarArg());
 
   // Create the new function
   Function *newFunction = Function::Create(funcType,
@@ -620,7 +650,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
     } else
       RewriteVal = &*AI++;
 
-    std::vector<User*> Users(inputs[i]->user_begin(), inputs[i]->user_end());
+    std::vector<User *> Users(inputs[i]->user_begin(), inputs[i]->user_end());
     for (User *use : Users)
       if (Instruction *inst = dyn_cast<Instruction>(use))
         if (Blocks.count(inst->getParent()))
@@ -639,7 +669,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
   // Rewrite branches to basic blocks outside of the loop to new dummy blocks
   // within the new function. This must be done before we lose track of which
   // blocks were originally in the code region.
-  std::vector<User*> Users(header->user_begin(), header->user_end());
+  std::vector<User *> Users(header->user_begin(), header->user_end());
   for (unsigned i = 0, e = Users.size(); i != e; ++i)
     // The BasicBlock which contains the branch is not in the region
     // modify the branch target to a new block
@@ -659,7 +689,7 @@ emitCallAndSwitchStatement(Function *newFunction, BasicBlock *codeReplacer,
                            ValueSet &inputs, ValueSet &outputs) {
   // Emit a call to the new function, passing in: *pointer to struct (if
   // aggregating parameters), or plan inputs and allocated memory for outputs
-  std::vector<Value*> params, StructValues, ReloadOutputs, Reloads;
+  std::vector<Value *> params, StructValues, ReloadOutputs, Reloads;
 
   Module *M = newFunction->getParent();
   LLVMContext &Context = M->getContext();
@@ -689,7 +719,7 @@ emitCallAndSwitchStatement(Function *newFunction, BasicBlock *codeReplacer,
   StructType *StructArgTy = nullptr;
   AllocaInst *Struct = nullptr;
   if (AggregateArgs && (inputs.size() + outputs.size() > 0)) {
-    std::vector<Type*> ArgTypes;
+    std::vector<Type *> ArgTypes;
     for (ValueSet::iterator v = StructValues.begin(),
            ve = StructValues.end(); v != ve; ++v)
       ArgTypes.push_back((*v)->getType());
@@ -741,7 +771,7 @@ emitCallAndSwitchStatement(Function *newFunction, BasicBlock *codeReplacer,
     LoadInst *load = new LoadInst(Output, outputs[i]->getName()+".reload");
     Reloads.push_back(load);
     codeReplacer->getInstList().push_back(load);
-    std::vector<User*> Users(outputs[i]->user_begin(), outputs[i]->user_end());
+    std::vector<User *> Users(outputs[i]->user_begin(), outputs[i]->user_end());
     for (unsigned u = 0, e = Users.size(); u != e; ++u) {
       Instruction *inst = cast<Instruction>(Users[u]);
       if (!Blocks.count(inst->getParent()))
@@ -787,7 +817,7 @@ emitCallAndSwitchStatement(Function *newFunction, BasicBlock *codeReplacer,
   // over all of the blocks in the extracted region, updating any terminator
   // instructions in the to-be-extracted region that branch to blocks that are
   // not in the region to be extracted.
-  std::map<BasicBlock*, BasicBlock*> ExitBlockMap;
+  std::map<BasicBlock *, BasicBlock *> ExitBlockMap;
 
   unsigned switchVal = 0;
   for (BasicBlock *Block : Blocks) {
@@ -823,7 +853,6 @@ emitCallAndSwitchStatement(Function *newFunction, BasicBlock *codeReplacer,
           TheSwitch->addCase(ConstantInt::get(Type::getInt16Ty(Context),
                                               SuccNum),
                              OldTarget);
-
         }
 
         // rewrite the original branch instruction with this new target
@@ -894,8 +923,8 @@ void CodeExtractor::calculateNewCallTerminatorWeights(
     BasicBlock *CodeReplacer,
     DenseMap<BasicBlock *, BlockFrequency> &ExitWeights,
     BranchProbabilityInfo *BPI) {
-  typedef BlockFrequencyInfoImplBase::Distribution Distribution;
-  typedef BlockFrequencyInfoImplBase::BlockNode BlockNode;
+  using Distribution = BlockFrequencyInfoImplBase::Distribution;
+  using BlockNode = BlockFrequencyInfoImplBase::BlockNode;
 
   // Update the branch weights for the exit block.
   TerminatorInst *TI = CodeReplacer->getTerminator();
@@ -939,12 +968,31 @@ Function *CodeExtractor::extractCodeRegion() {
   if (!isEligible())
     return nullptr;
 
-  ValueSet inputs, outputs, SinkingCands, HoistingCands;
-  BasicBlock *CommonExit = nullptr;
-
   // Assumption: this is a single-entry code region, and the header is the first
   // block in the region.
   BasicBlock *header = *Blocks.begin();
+  Function *oldFunction = header->getParent();
+
+  // For functions with varargs, check that varargs handling is only done in the
+  // outlined function, i.e vastart and vaend are only used in outlined blocks.
+  if (AllowVarArgs && oldFunction->getFunctionType()->isVarArg()) {
+    auto containsVarArgIntrinsic = [](Instruction &I) {
+      if (const CallInst *CI = dyn_cast<CallInst>(&I))
+        if (const Function *F = CI->getCalledFunction())
+          return F->getIntrinsicID() == Intrinsic::vastart ||
+                 F->getIntrinsicID() == Intrinsic::vaend;
+      return false;
+    };
+
+    for (auto &BB : *oldFunction) {
+      if (Blocks.count(&BB))
+        continue;
+      if (llvm::any_of(BB, containsVarArgIntrinsic))
+        return nullptr;
+    }
+  }
+  ValueSet inputs, outputs, SinkingCands, HoistingCands;
+  BasicBlock *CommonExit = nullptr;
 
   // Calculate the entry frequency of the new function before we change the root
   //   block.
@@ -965,8 +1013,6 @@ Function *CodeExtractor::extractCodeRegion() {
   // If we have any return instructions in the region, split those blocks so
   // that the return is not in the region.
   splitReturnBlocks();
-
-  Function *oldFunction = header->getParent();
 
   // This takes place of the original loop
   BasicBlock *codeReplacer = BasicBlock::Create(header->getContext(), 
@@ -998,7 +1044,7 @@ Function *CodeExtractor::extractCodeRegion() {
   }
 
   // Calculate the exit blocks for the extracted region and the total exit
-  //  weights for each of those blocks.
+  // weights for each of those blocks.
   DenseMap<BasicBlock *, BlockFrequency> ExitWeights;
   SmallPtrSet<BasicBlock *, 1> ExitBlocks;
   for (BasicBlock *Block : Blocks) {
@@ -1051,8 +1097,8 @@ Function *CodeExtractor::extractCodeRegion() {
   // Look at all successors of the codeReplacer block.  If any of these blocks
   // had PHI nodes in them, we need to update the "from" block to be the code
   // replacer, not the original block in the extracted region.
-  std::vector<BasicBlock*> Succs(succ_begin(codeReplacer),
-                                 succ_end(codeReplacer));
+  std::vector<BasicBlock *> Succs(succ_begin(codeReplacer),
+                                  succ_end(codeReplacer));
   for (unsigned i = 0, e = Succs.size(); i != e; ++i)
     for (BasicBlock::iterator I = Succs[i]->begin(); isa<PHINode>(I); ++I) {
       PHINode *PN = cast<PHINode>(I);

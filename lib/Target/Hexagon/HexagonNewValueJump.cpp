@@ -33,6 +33,9 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Pass.h"
@@ -42,9 +45,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetOpcodes.h"
-#include "llvm/Target/TargetRegisterInfo.h"
-#include "llvm/Target/TargetSubtargetInfo.h"
 #include <cassert>
 #include <cstdint>
 #include <iterator>
@@ -228,7 +228,11 @@ static bool canCompareBeNewValueJump(const HexagonInstrInfo *QII,
   // If the second operand of the compare is an imm, make sure it's in the
   // range specified by the arch.
   if (!secondReg) {
-    int64_t v = MI.getOperand(2).getImm();
+    const MachineOperand &Op2 = MI.getOperand(2);
+    if (!Op2.isImm())
+      return false;
+
+    int64_t v = Op2.getImm();
     bool Valid = false;
 
     switch (MI.getOpcode()) {

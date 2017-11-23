@@ -42,13 +42,25 @@ static MCInstrInfo *createRISCVMCInstrInfo() {
 
 static MCRegisterInfo *createRISCVMCRegisterInfo(const Triple &TT) {
   MCRegisterInfo *X = new MCRegisterInfo();
-  InitRISCVMCRegisterInfo(X, RISCV::X1_32);
+  InitRISCVMCRegisterInfo(X, RISCV::X1);
   return X;
 }
 
 static MCAsmInfo *createRISCVMCAsmInfo(const MCRegisterInfo &MRI,
                                        const Triple &TT) {
-  return new RISCVMCAsmInfo(TT);
+  MCAsmInfo *MAI = new RISCVMCAsmInfo(TT);
+  // Initial state of the frame pointer is SP.
+  unsigned Reg = MRI.getDwarfRegNum(RISCV::X2, true);
+  MAI->addInitialFrameState(MCCFIInstruction::createDefCfa(nullptr, Reg, 0));
+  return MAI;
+}
+
+static MCSubtargetInfo *createRISCVMCSubtargetInfo(const Triple &TT,
+                                                   StringRef CPU, StringRef FS) {
+  std::string CPUName = CPU;
+  if (CPUName.empty())
+    CPUName = TT.isArch64Bit() ? "generic-rv64" : "generic-rv32";
+  return createRISCVMCSubtargetInfoImpl(TT, CPUName, FS);
 }
 
 static MCInstPrinter *createRISCVMCInstPrinter(const Triple &T,
@@ -67,6 +79,6 @@ extern "C" void LLVMInitializeRISCVTargetMC() {
     TargetRegistry::RegisterMCAsmBackend(*T, createRISCVAsmBackend);
     TargetRegistry::RegisterMCCodeEmitter(*T, createRISCVMCCodeEmitter);
     TargetRegistry::RegisterMCInstPrinter(*T, createRISCVMCInstPrinter);
-    TargetRegistry::RegisterMCSubtargetInfo(*T, createRISCVMCSubtargetInfoImpl);
+    TargetRegistry::RegisterMCSubtargetInfo(*T, createRISCVMCSubtargetInfo);
   }
 }

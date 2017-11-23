@@ -12,6 +12,10 @@
 //===---------------------------------------------------------------------===//
 
 #include "ResourceScriptParser.h"
+#include "llvm/Option/ArgList.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 
 // Take an expression returning llvm::Error and forward the error if it exists.
 #define RETURN_IF_ERROR(Expr)                                                  \
@@ -241,9 +245,7 @@ Error RCParser::consumeType(Kind TokenKind) {
 #define SHORT_TOKEN(TokenName, TokenCh)                                        \
   case Kind::TokenName:                                                        \
     return getExpectedError(#TokenCh);
-#include "ResourceScriptTokenList.h"
-#undef SHORT_TOKEN
-#undef TOKEN
+#include "ResourceScriptTokenList.def"
   }
 
   llvm_unreachable("All case options exhausted.");

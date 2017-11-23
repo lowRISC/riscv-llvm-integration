@@ -38,6 +38,7 @@ class AssemblerConstantPools;
 class formatted_raw_ostream;
 class MCAsmBackend;
 class MCCodeEmitter;
+struct MCCodePaddingContext;
 class MCContext;
 class MCExpr;
 class MCInst;
@@ -716,6 +717,12 @@ public:
   virtual void emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                                  SMLoc Loc);
 
+  virtual void
+  EmitCodePaddingBasicBlockStart(const MCCodePaddingContext &Context) {}
+
+  virtual void
+  EmitCodePaddingBasicBlockEnd(const MCCodePaddingContext &Context) {}
+
   /// @}
 
   /// \brief Switch to a new logical file.  This is used to implement the '.file
@@ -789,6 +796,9 @@ public:
   /// This implements the CodeView '.cv_filechecksumoffset' assembler
   /// directive.
   virtual void EmitCVFileChecksumOffsetDirective(unsigned FileNo) {}
+
+  /// This implements the CodeView '.cv_fpo_data' assembler directive.
+  virtual void EmitCVFPOData(const MCSymbol *ProcSym, SMLoc Loc = {}) {}
 
   /// Emit the absolute difference between two symbols.
   ///

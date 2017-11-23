@@ -138,7 +138,7 @@ tools = [
 tools.extend([
     'lli', 'lli-child-target', 'llvm-ar', 'llvm-as', 'llvm-bcanalyzer', 'llvm-config', 'llvm-cov',
     'llvm-cxxdump', 'llvm-cvtres', 'llvm-diff', 'llvm-dis', 'llvm-dsymutil',
-    'llvm-dwarfdump', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-lib',
+    'llvm-dwarfdump', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mcmarkup',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump',
     'llvm-pdbutil', 'llvm-profdata', 'llvm-ranlib', 'llvm-readobj',
@@ -168,6 +168,10 @@ for arch in config.targets_to_build.split():
     config.available_features.add(arch.lower() + '-registered-target')
 
 # Features
+known_arches = ["x86_64", "mips64", "ppc64", "aarch64"]
+if (config.host_ldflags.find("-m32") < 0
+    and any(config.llvm_host_triple.startswith(x) for x in known_arches)):
+  config.available_features.add("llvm-64-bits")
 
 # Others/can-execute.txt
 if sys.platform not in ['win32']:
@@ -185,7 +189,7 @@ if loadable_module:
     config.available_features.add('loadable_module')
 
 # Static libraries are not built if BUILD_SHARED_LIBS is ON.
-if not config.build_shared_libs:
+if not config.build_shared_libs and not config.link_llvm_dylib:
     config.available_features.add('static-libs')
 
 # Direct object generation

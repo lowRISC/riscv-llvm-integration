@@ -39,6 +39,9 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/TargetLoweringObjectFile.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
@@ -63,11 +66,8 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Target/TargetRegisterInfo.h"
-#include "llvm/Target/TargetSubtargetInfo.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -232,6 +232,16 @@ void DbgVariable::addMMIEntry(const DbgVariable &V) {
 
   assert(!FrameIndexExprs.empty() && "Expected an MMI entry");
   assert(!V.FrameIndexExprs.empty() && "Expected an MMI entry");
+
+  // FIXME: This logic should not be necessary anymore, as we now have proper
+  // deduplication. However, without it, we currently run into the assertion
+  // below, which means that we are likely dealing with broken input, i.e. two
+  // non-fragment entries for the same variable at different frame indices.
+  if (FrameIndexExprs.size()) {
+    auto *Expr = FrameIndexExprs.back().Expr;
+    if (!Expr || !Expr->isFragment())
+      return;
+  }
 
   for (const auto &FIE : V.FrameIndexExprs)
     // Ignore duplicate entries.
@@ -533,13 +543,18 @@ static SmallVectorImpl<DwarfCompileUnit::GlobalExpr> &
 sortGlobalExprs(SmallVectorImpl<DwarfCompileUnit::GlobalExpr> &GVEs) {
   std::sort(GVEs.begin(), GVEs.end(),
             [](DwarfCompileUnit::GlobalExpr A, DwarfCompileUnit::GlobalExpr B) {
-              if (A.Expr != B.Expr && A.Expr && B.Expr) {
-                auto FragmentA = A.Expr->getFragmentInfo();
-                auto FragmentB = B.Expr->getFragmentInfo();
-                if (FragmentA && FragmentB)
-                  return FragmentA->OffsetInBits < FragmentB->OffsetInBits;
-              }
-              return false;
+              // Sort order: first null exprs, then exprs without fragment
+              // info, then sort by fragment offset in bits.
+              // FIXME: Come up with a more comprehensive comparator so
+              // the sorting isn't non-deterministic, and so the following
+              // std::unique call works correctly.
+              if (!A.Expr || !B.Expr)
+                return !!B.Expr;
+              auto FragmentA = A.Expr->getFragmentInfo();
+              auto FragmentB = B.Expr->getFragmentInfo();
+              if (!FragmentA || !FragmentB)
+                return !!FragmentB;
+              return FragmentA->OffsetInBits < FragmentB->OffsetInBits;
             });
   GVEs.erase(std::unique(GVEs.begin(), GVEs.end(),
                          [](DwarfCompileUnit::GlobalExpr A,
@@ -1148,7 +1163,7 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   DebugHandlerBase::beginInstruction(MI);
   assert(CurMI);
 
-  const auto *SP = MI->getParent()->getParent()->getFunction()->getSubprogram();
+  const auto *SP = MI->getMF()->getFunction()->getSubprogram();
   if (!SP || SP->getUnit()->getEmissionKind() == DICompileUnit::NoDebug)
     return;
 

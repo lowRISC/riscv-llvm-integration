@@ -29,6 +29,8 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/StackMaps.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/MC/MCInst.h"
@@ -41,8 +43,6 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Target/TargetRegisterInfo.h"
-#include "llvm/Target/TargetSubtargetInfo.h"
 #include <cassert>
 #include <cstdint>
 #include <iterator>
@@ -1038,6 +1038,12 @@ bool AArch64InstrInfo::areMemAccessesTriviallyDisjoint(
 bool AArch64InstrInfo::analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
                                       unsigned &SrcReg2, int &CmpMask,
                                       int &CmpValue) const {
+  // The first operand can be a frame index where we'd normally expect a
+  // register.
+  assert(MI.getNumOperands() >= 2 && "All AArch64 cmps should have 2 operands");
+  if (!MI.getOperand(1).isReg())
+    return false;
+
   switch (MI.getOpcode()) {
   default:
     break;

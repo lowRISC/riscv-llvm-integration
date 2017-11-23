@@ -27,13 +27,13 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetSubtargetInfo.h"
 #include <cassert>
 #include <cstdint>
 
@@ -361,7 +361,7 @@ bool HexagonOptAddrMode::changeLoad(MachineInstr *OldMI, MachineOperand ImmOp,
       Changed = false;
 
     DEBUG(dbgs() << "[Changing]: " << *OldMI << "\n");
-    DEBUG(dbgs() << "[TO]: " << MIB << "\n");
+    DEBUG(dbgs() << "[TO]: " << *MIB << "\n");
   } else if (ImmOpNum == 2 && OldMI->getOperand(3).getImm() == 0) {
     short NewOpCode = HII->changeAddrMode_rr_io(*OldMI);
     assert(NewOpCode >= 0 && "Invalid New opcode\n");
@@ -372,7 +372,7 @@ bool HexagonOptAddrMode::changeLoad(MachineInstr *OldMI, MachineOperand ImmOp,
     OpStart = 4;
     Changed = true;
     DEBUG(dbgs() << "[Changing]: " << *OldMI << "\n");
-    DEBUG(dbgs() << "[TO]: " << MIB << "\n");
+    DEBUG(dbgs() << "[TO]: " << *MIB << "\n");
   }
 
   if (Changed)
@@ -414,18 +414,17 @@ bool HexagonOptAddrMode::changeStore(MachineInstr *OldMI, MachineOperand ImmOp,
     }
     Changed = true;
     DEBUG(dbgs() << "[Changing]: " << *OldMI << "\n");
-    DEBUG(dbgs() << "[TO]: " << MIB << "\n");
+    DEBUG(dbgs() << "[TO]: " << *MIB << "\n");
   } else if (ImmOpNum == 1 && OldMI->getOperand(2).getImm() == 0) {
     short NewOpCode = HII->changeAddrMode_rr_io(*OldMI);
     assert(NewOpCode >= 0 && "Invalid New opcode\n");
     MIB = BuildMI(*BB, InsertPt, OldMI->getDebugLoc(), HII->get(NewOpCode));
     MIB.add(OldMI->getOperand(0));
     MIB.add(ImmOp);
-    MIB.add(OldMI->getOperand(1));
-    OpStart = 2;
+    OpStart = 3;
     Changed = true;
     DEBUG(dbgs() << "[Changing]: " << *OldMI << "\n");
-    DEBUG(dbgs() << "[TO]: " << MIB << "\n");
+    DEBUG(dbgs() << "[TO]: " << *MIB << "\n");
   }
   if (Changed)
     for (unsigned i = OpStart; i < OpEnd; ++i)
