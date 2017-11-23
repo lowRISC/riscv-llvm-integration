@@ -4,25 +4,27 @@
 
 %struct.key_t = type { i32, [16 x i8] }
 
-; FIXME: prologue and epilogue insertion must be implemented to complete this
-; test
-
 define i32 @test() nounwind {
 ; RV32I-LABEL: test:
 ; RV32I:       # BB#0:
+; RV32I-NEXT:    addi sp, sp, -32
 ; RV32I-NEXT:    sw ra, 28(sp)
-; RV32I-NEXT:    sw zero, -8(s0)
-; RV32I-NEXT:    sw zero, -12(s0)
+; RV32I-NEXT:    sw s0, 24(sp)
+; RV32I-NEXT:    addi s0, sp, 32
 ; RV32I-NEXT:    sw zero, -16(s0)
 ; RV32I-NEXT:    sw zero, -20(s0)
 ; RV32I-NEXT:    sw zero, -24(s0)
-; RV32I-NEXT:    addi a0, s0, -24
+; RV32I-NEXT:    sw zero, -28(s0)
+; RV32I-NEXT:    sw zero, -32(s0)
+; RV32I-NEXT:    addi a0, s0, -32
 ; RV32I-NEXT:    ori a0, a0, 4
 ; RV32I-NEXT:    lui a1, %hi(test1)
 ; RV32I-NEXT:    addi a1, a1, %lo(test1)
 ; RV32I-NEXT:    jalr ra, a1, 0
 ; RV32I-NEXT:    addi a0, zero, 0
+; RV32I-NEXT:    lw s0, 24(sp)
 ; RV32I-NEXT:    lw ra, 28(sp)
+; RV32I-NEXT:    addi sp, sp, 32
 ; RV32I-NEXT:    jalr zero, ra, 0
   %key = alloca %struct.key_t, align 4
   %1 = bitcast %struct.key_t* %key to i8*
