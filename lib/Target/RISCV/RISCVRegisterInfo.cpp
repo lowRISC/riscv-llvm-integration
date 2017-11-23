@@ -74,7 +74,6 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       MI.getOperand(FIOperandNum + 1).getImm();
 
   unsigned Reg = MI.getOperand(0).getReg();
-  assert(RISCV::GPRRegClass.contains(Reg) && "Unexpected register operand");
 
   if (!isInt<32>(Offset)) {
     report_fatal_error(
@@ -113,9 +112,20 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
         .addReg(FrameReg, FrameRegFlags)
         .addImm(Offset);
     break;
+  case RISCV::LdFPR32_FI:
+    BuildMI(MBB, II, DL, TII->get(RISCV::FLW), Reg)
+        .addReg(FrameReg, FrameRegFlags)
+        .addImm(Offset);
+    break;
   case RISCV::StXLEN_FI:
     Opc = Subtarget.is64Bit() ? RISCV::SD : RISCV::SW;
     BuildMI(MBB, II, DL, TII->get(Opc))
+        .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
+        .addReg(FrameReg, FrameRegFlags | RegState::Kill)
+        .addImm(Offset);
+    break;
+  case RISCV::StFPR32_FI:
+    BuildMI(MBB, II, DL, TII->get(RISCV::FSW))
         .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
         .addReg(FrameReg, FrameRegFlags | RegState::Kill)
         .addImm(Offset);

@@ -53,13 +53,19 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   if (I != MBB.end())
     DL = I->getDebugLoc();
 
+  unsigned Opcode;
+
   if (RC == &RISCV::GPRRegClass)
-    BuildMI(MBB, I, DL, get(RISCV::StXLEN_FI))
-        .addReg(SrcReg, getKillRegState(IsKill))
-        .addFrameIndex(FI)
-        .addImm(0);
+    Opcode = RISCV::StXLEN_FI;
+  else if (RC == &RISCV::FPR32RegClass)
+    Opcode = RISCV::StFPR32_FI;
   else
     llvm_unreachable("Can't store this register to stack slot");
+
+  BuildMI(MBB, I, DL, get(Opcode))
+      .addReg(SrcReg, getKillRegState(IsKill))
+      .addFrameIndex(FI)
+      .addImm(0);
 }
 
 void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
@@ -71,12 +77,16 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   if (I != MBB.end())
     DL = I->getDebugLoc();
 
+  unsigned Opcode;
+
   if (RC == &RISCV::GPRRegClass)
-    BuildMI(MBB, I, DL, get(RISCV::LdXLEN_FI), DstReg)
-        .addFrameIndex(FI)
-        .addImm(0);
+    Opcode = RISCV::LdXLEN_FI;
+  else if (RC == &RISCV::FPR32RegClass)
+    Opcode = RISCV::LdFPR32_FI;
   else
     llvm_unreachable("Can't load this register from stack slot");
+
+  BuildMI(MBB, I, DL, get(Opcode), DstReg).addFrameIndex(FI).addImm(0);
 }
 
 // The contents of values added to Cond are not examined outside of

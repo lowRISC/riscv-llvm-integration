@@ -247,10 +247,16 @@ def : PatFpr32Fpr32<setole, FLE_S>;
 
 defm : LdPat<load, FLW>;
 
+def LdFPR32_FI : Pseudo<(outs FPR32:$dst), (ins MEMii:$addr),
+                        [(set FPR32:$dst, (load ADDRii:$addr))]>;
+
 /// Stores
 
 def : Pat<(store FPR32:$rs2, GPR:$rs1), (FSW FPR32:$rs2, GPR:$rs1, 0)>;
 def : Pat<(store FPR32:$rs2, (add GPR:$rs1, simm12:$imm12)),
             (FSW FPR32:$rs2, GPR:$rs1, simm12:$imm12)>;
+
+def StFPR32_FI : Pseudo<(outs), (ins FPR32:$src, MEMii:$addr),
+                        [(store FPR32:$src, ADDRii:$addr)]>;
 
 } // Predicates = [HasStdExtF]
