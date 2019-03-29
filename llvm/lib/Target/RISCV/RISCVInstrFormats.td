@@ -312,3 +312,57 @@ class RVInstJ<RISCVOpcode opcode, dag outs, dag ins, string opcodestr,
   let Inst{11-7} = rd;
   let Opcode = opcode.Value;
 }
+
+// funct7, funct3, and opcode used as arguments to RVInstR are dummies that
+// will be overwritten.
+class RVDirectiveInsnR<dag outs, dag ins, string opcodestr, string argstr>
+    : RVInstR<0, 0, OPC_LOAD, outs, ins, opcodestr, argstr> {
+  bits<7> funct7;
+  bits<3> funct3;
+  bits<7> opcode;
+
+  let Inst{31-25} = funct7;
+  let Inst{14-12} = funct3;
+  let Inst{6-0} = opcode;
+}
+
+class RVDirectiveInsnI<dag outs, dag ins, string opcodestr, string argstr>
+    : RVInstI<0, OPC_LOAD, outs, ins, opcodestr, argstr> {
+  bits<3> funct3;
+  bits<7> opcode;
+
+  let Inst{14-12} = funct3;
+  let Inst{6-0} = opcode;
+}
+
+class RVDirectiveInsnS<dag outs, dag ins, string opcodestr, string argstr>
+    : RVInstS<0, OPC_LOAD, outs, ins, opcodestr, argstr> {
+  bits<3> funct3;
+  bits<7> opcode;
+
+  let Inst{14-12} = funct3;
+  let Inst{6-0} = opcode;
+}
+
+class RVDirectiveInsnB<dag outs, dag ins, string opcodestr, string argstr>
+    : RVInstB<0, OPC_LOAD, outs, ins, opcodestr, argstr> {
+  bits<3> funct3;
+  bits<7> opcode;
+
+  let Inst{14-12} = funct3;
+  let Inst{6-0} = opcode;
+}
+
+class RVDirectiveInsnU<dag outs, dag ins, string opcodestr, string argstr>
+    : RVInstU<OPC_LOAD, outs, ins, opcodestr, argstr> {
+  bits<7> opcode;
+
+  let Inst{6-0} = opcode;
+}
+
+class RVDirectiveInsnJ<dag outs, dag ins, string opcodestr, string argstr>
+    : RVInstJ<OPC_LOAD, outs, ins, opcodestr, argstr> {
+  bits<7> opcode;
+
+  let Inst{6-0} = opcode;
+}

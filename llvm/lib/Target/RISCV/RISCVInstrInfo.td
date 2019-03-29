@@ -113,9 +113,19 @@ def uimmlog2xlen : Operand<XLenVT>, ImmLeaf<XLenVT, [{
   }];
 }
 
+def uimm3 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<3>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<3>;
+  let DecoderMethod = "decodeUImmOperand<3>";
+}
+
 def uimm5 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<5>;
   let DecoderMethod = "decodeUImmOperand<5>";
+}
+
+def uimm7 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<7>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<7>;
+  let DecoderMethod = "decodeUImmOperand<7>";
 }
 
 def simm12 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isInt<12>(Imm);}]> {
@@ -705,6 +715,50 @@ def : MnemonicAlias<"move", "mv">;
 // the old name for backwards compatibility.
 def : MnemonicAlias<"scall", "ecall">;
 def : MnemonicAlias<"sbreak", "ebreak">;
+
+//===----------------------------------------------------------------------===//
+// .insn directive
+//===----------------------------------------------------------------------===//
+
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1,
+    isAsmParserOnly = 1 in {
+// TODO: consider just using RVInst* directly rather than an intermediate
+// RVDirectiveInsn* class.
+def INSN_R
+    : RVDirectiveInsnR<(outs GPR:$rd),
+                       (ins uimm7:$opcode, uimm3:$funct3, uimm7:$funct7,
+                        GPR:$rs1, GPR:$rs2), ".insn r",
+                       "$opcode, $funct3, $funct7, $rd, $rs1, $rs2">;
+
+def INSN_I
+    : RVDirectiveInsnI<(outs GPR:$rd),
+                       (ins uimm7:$opcode, uimm3:$funct3, GPR:$rs1,
+                        simm12:$imm12), ".insn i",
+                       "$opcode, $funct3, $rd, $rs1, $imm12">;
+
+def INSN_S
+    : RVDirectiveInsnS<(outs),
+                       (ins uimm7:$opcode, uimm3:$funct3, GPR:$rs1, GPR:$rs2,
+                        simm12:$imm12), ".insn s",
+                       "$opcode, $funct3, $rs1, $rs2, $imm12">;
+
+def INSN_B
+    : RVDirectiveInsnB<(outs),
+                       (ins uimm7:$opcode, uimm3:$funct3, GPR:$rs1, GPR:$rs2,
+                        simm13_lsb0:$imm12), ".insn b",
+                       "$opcode, $funct3, $rs1, $rs2, $imm12">;
+
+def INSN_U
+    : RVDirectiveInsnU<(outs GPR:$rd),
+                       (ins uimm7:$opcode, uimm20_lui:$imm20), ".insn u",
+                       "$opcode, $rd, $imm20">;
+
+def INSN_J
+    : RVDirectiveInsnJ<(outs GPR:$rd),
+                       (ins uimm7:$opcode, simm21_lsb0_jal:$imm20), ".insn j",
+                       "$opcode, $rd, $imm20">;
+
+}
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns

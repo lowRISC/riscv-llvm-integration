@@ -416,6 +416,13 @@ public:
   /// \param DirectiveID - the identifier token of the directive.
   virtual bool ParseDirective(AsmToken DirectiveID) = 0;
 
+  /// Return true if the given IDVal should be parsed as a directive. Called
+  /// whenever a "normal" directive is encountered (i.e. not conditional
+  /// assembly directives). Targets may use this to override default parsing
+  /// behaviour, for instance to allow instruction-like directives such as
+  /// .insn to be parsed as an instruction.
+  virtual bool shouldParseAsDirective(StringRef IDVal) { return true; }
+
   /// MatchAndEmitInstruction - Recognize a series of operands of a parsed
   /// instruction as an actual MCInst and emit it to the specified MCStreamer.
   /// This returns false on success and returns true on failure to match.

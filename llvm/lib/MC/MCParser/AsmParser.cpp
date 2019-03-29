@@ -1862,7 +1862,8 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
   // Otherwise, we have a normal instruction or directive.
 
   // Directives start with "."
-  if (IDVal.startswith(".") && IDVal != ".") {
+  if (IDVal.startswith(".") && IDVal != "." &&
+      getTargetParser().shouldParseAsDirective(IDVal)) {
     // There are several entities interested in parsing directives:
     //
     // 1. The target-specific assembly parser. Some directives are target

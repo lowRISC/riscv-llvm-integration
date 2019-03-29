@@ -72,6 +72,8 @@ class RISCVAsmParser : public MCTargetAsmParser {
 
   bool ParseDirective(AsmToken DirectiveID) override;
 
+  bool shouldParseAsDirective(StringRef IDVal) override;
+
   // Helper to actually emit an instruction to the MCStreamer. Also, when
   // possible, compression of the instruction is performed.
   void emitToStreamer(MCStreamer &S, const MCInst &Inst);
@@ -264,6 +266,16 @@ public:
     return false;
   }
 
+  // True if operand is a constant immediate and isUInt<5>.
+  template <int N> bool isBareUImmN() const {
+    int64_t Imm;
+    RISCVMCExpr::VariantKind VK;
+    if (!isImm())
+      return false;
+    bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
+    return IsConstantImm && isUInt<N>(Imm) && VK == RISCVMCExpr::VK_RISCV_None;
+  }
+
   // True if operand is a symbol with no modifiers, or a constant with no
   // modifiers and isShiftedInt<N-1, 1>(Op).
   template <int N> bool isBareSimmNLsb0() const {
@@ -392,14 +404,9 @@ public:
     return (isRV64() && isUInt<6>(Imm)) || isUInt<5>(Imm);
   }
 
-  bool isUImm5() const {
-    int64_t Imm;
-    RISCVMCExpr::VariantKind VK;
-    if (!isImm())
-      return false;
-    bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
-    return IsConstantImm && isUInt<5>(Imm) && VK == RISCVMCExpr::VK_RISCV_None;
-  }
+  bool isUImm3() const { return isBareUImmN<3>(); }
+
+  bool isUImm5() const { return isBareUImmN<5>(); }
 
   bool isUImm5NonZero() const {
     int64_t Imm;
@@ -441,6 +448,8 @@ public:
            (isUInt<5>(Imm) || (Imm >= 0xfffe0 && Imm <= 0xfffff)) &&
            VK == RISCVMCExpr::VK_RISCV_None;
   }
+
+  bool isUImm7() const { return isBareUImmN<7>(); }
 
   bool isUImm7Lsb00() const {
     if (!isImm())
@@ -1311,6 +1320,17 @@ bool RISCVAsmParser::ParseInstruction(ParseInstructionInfo &Info,
   // First operand is token for instruction
   Operands.push_back(RISCVOperand::createToken(Name, NameLoc, isRV64()));
 
+  // If parsing a .insn directive, then create a token containing the
+  // instruction format identifier.
+  if (Name == ".insn") {
+    SMLoc Loc = getLoc();
+    if (!getLexer().is(AsmToken::Identifier))
+      return Error(Loc, ".insn should be followed by an instruction format");
+    StringRef InstFormat = getParser().getTok().getIdentifier();
+    getParser().Lex();
+    Operands.push_back(RISCVOperand::createToken(InstFormat, Loc, isRV64()));
+  }
+
   // If there are no more operands, then finish
   if (getLexer().is(AsmToken::EndOfStatement))
     return false;
@@ -1398,6 +1418,10 @@ bool RISCVAsmParser::ParseDirective(AsmToken DirectiveID) {
     return parseDirectiveOption();
 
   return true;
+}
+
+bool RISCVAsmParser::shouldParseAsDirective(StringRef IDVal) {
+  return IDVal != ".insn";
 }
 
 bool RISCVAsmParser::parseDirectiveOption() {
