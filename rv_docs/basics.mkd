@@ -1,0 +1,56 @@
+# Basic overview of modifying the RISC-V LLVM backend
+## Purpose
+This document aims to give brief guidance for classes of modifications to the
+RISC-V LLVM backend that are commonly asked about.
+
+## How do I support a custom instruction set extension and how difficult will it be?
+
+This is a frequently asked question and one that has many answers depending on
+the nature of the extension, the degree of "support" desired, available
+engineering time, and level of LLVM experience.
+
+Various options are available when supporting new instructions:
+
+1. Avoid modifications to LLVM or Clang, but make use of the [.insn
+   directive](https://sourceware.org/binutils/docs-2.32/as/RISC_002dV_002dFormats.html#RISC_002dV_002dFormats)
+   to assemble the desired instruction through inline asm.
+2. As above, but also writing your own C wrapper functions to make it easy to
+   use.
+3. Adding assembly/disassembly support by defining how the instructions are
+   encoded and decoded. See `tutorial.mkd` and the linked resources for an
+   example of this.
+4. Adding codegen support. i.e. allowing the compiler to select the new
+   instructions when appropriate. This might be based on recognising patterns
+   of operations that can be implemented using the new instruction (see
+   `tutorial.mkd` for a simple example), or may be integrated elsewhere in the
+   backend in the case of e.g. security-related instructions that are inserted
+   during function prologues and epilogues.
+
+The difficulty of options 1-3 is fairly constant, independent of the nature
+of the instructions being implemented. If the new instructions don't use one
+of the current RISC-V instruction formats, introduce new addressing modes, or
+have more complex operand validation requirements then the amount of work will
+be slightly increased.
+
+Option 4), adding codegen support is very highly dependent on the instructions
+being added. For many bit manipulation instructions can be trivial - often an
+LLVM intrinsic can just be matched to the target instruction (e.g. CLZ).
+
+## How do I instrument function prologue/epilogues?
+
+The logic for prologue and epilogue insertion is in
+`lib/Target/RISCV/RISCVFrameLowering.cpp`. The `emitPrologue` and
+`emitEpilogue` methods are called from the target-independent
+`lib/CodeGen/PrologEpilogInserter.cpp`. See
+`backend_implementation/10-codegen-frame-handling.mkd` for slightly more
+background.
+
+When making a potentially intrusive modification to LLVM it's often useful to
+identify something else that is already in-tree which has similar properties
+and can be learnt from. The support that was added to LLVM, Clang, and
+compiler-rt for "SafeStack" may be worth studying in order to get an idea of
+the sort of changes required for a particular security-related enhancement.
+
+## How do I add a new LLVM pass?
+
+See the [upstream documentation](http://llvm.org/docs/WritingAnLLVMPass.html).
