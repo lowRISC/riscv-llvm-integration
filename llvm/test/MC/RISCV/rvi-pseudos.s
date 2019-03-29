@@ -1,9 +1,11 @@
-# RUN: llvm-mc %s -triple=riscv32 | FileCheck %s --check-prefixes=CHECK,CHECK-NOPIC
-# RUN: llvm-mc %s -triple=riscv64 | FileCheck %s --check-prefixes=CHECK,CHECK-NOPIC
+# RUN: llvm-mc %s -triple=riscv32 \
+# RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-NOPIC,CHECK-RV32
+# RUN: llvm-mc %s -triple=riscv64 \
+# RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-NOPIC,CHECK-RV64
 # RUN: llvm-mc %s -triple=riscv32 -position-independent \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-PIC,CHECK-PIC-RV32
+# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-PIC,CHECK-RV32,CHECK-PIC-RV32
 # RUN: llvm-mc %s -triple=riscv64 -position-independent \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-PIC,CHECK-PIC-RV64
+# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-PIC,CHECK-RV64,CHECK-PIC-RV64
 
 # CHECK: .Lpcrel_hi0:
 # CHECK: auipc a0, %pcrel_hi(a_symbol)
@@ -117,3 +119,60 @@ lw a2, zero
 # CHECK: auipc a4, %pcrel_hi(zero)
 # CHECK: sw  a3, %pcrel_lo(.Lpcrel_hi18)(a4)
 sw a3, zero, a4
+
+# CHECK: .Lpcrel_hi19:
+# CHECK: auipc a0, %tls_ie_pcrel_hi(a_symbol)
+# CHECK-RV32: lw    a0, %pcrel_lo(.Lpcrel_hi19)(a0)
+# CHECK-RV64: ld    a0, %pcrel_lo(.Lpcrel_hi19)(a0)
+la.tls.ie a0, a_symbol
+
+# CHECK: .Lpcrel_hi20:
+# CHECK: auipc a1, %tls_ie_pcrel_hi(another_symbol)
+# CHECK-RV32: lw    a1, %pcrel_lo(.Lpcrel_hi20)(a1)
+# CHECK-RV64: ld    a1, %pcrel_lo(.Lpcrel_hi20)(a1)
+la.tls.ie a1, another_symbol
+
+# Check that we can load the address of symbols that are spelled like a register
+# CHECK: .Lpcrel_hi21:
+# CHECK: auipc a2, %tls_ie_pcrel_hi(zero)
+# CHECK-RV32: lw    a2, %pcrel_lo(.Lpcrel_hi21)(a2)
+# CHECK-RV64: ld    a2, %pcrel_lo(.Lpcrel_hi21)(a2)
+la.tls.ie a2, zero
+
+# CHECK: .Lpcrel_hi22:
+# CHECK: auipc a3, %tls_ie_pcrel_hi(ra)
+# CHECK-RV32: lw    a3, %pcrel_lo(.Lpcrel_hi22)(a3)
+# CHECK-RV64: ld    a3, %pcrel_lo(.Lpcrel_hi22)(a3)
+la.tls.ie a3, ra
+
+# CHECK: .Lpcrel_hi23:
+# CHECK: auipc a4, %tls_ie_pcrel_hi(f1)
+# CHECK-RV32: lw    a4, %pcrel_lo(.Lpcrel_hi23)(a4)
+# CHECK-RV64: ld    a4, %pcrel_lo(.Lpcrel_hi23)(a4)
+la.tls.ie a4, f1
+
+# CHECK: .Lpcrel_hi24:
+# CHECK: auipc a0, %tls_gd_pcrel_hi(a_symbol)
+# CHECK: addi  a0, a0, %pcrel_lo(.Lpcrel_hi24)
+la.tls.gd a0, a_symbol
+
+# CHECK: .Lpcrel_hi25:
+# CHECK: auipc a1, %tls_gd_pcrel_hi(another_symbol)
+# CHECK: addi  a1, a1, %pcrel_lo(.Lpcrel_hi25)
+la.tls.gd a1, another_symbol
+
+# Check that we can load the address of symbols that are spelled like a register
+# CHECK: .Lpcrel_hi26:
+# CHECK: auipc a2, %tls_gd_pcrel_hi(zero)
+# CHECK: addi  a2, a2, %pcrel_lo(.Lpcrel_hi26)
+la.tls.gd a2, zero
+
+# CHECK: .Lpcrel_hi27:
+# CHECK: auipc a3, %tls_gd_pcrel_hi(ra)
+# CHECK: addi  a3, a3, %pcrel_lo(.Lpcrel_hi27)
+la.tls.gd a3, ra
+
+# CHECK: .Lpcrel_hi28:
+# CHECK: auipc a4, %tls_gd_pcrel_hi(f1)
+# CHECK: addi  a4, a4, %pcrel_lo(.Lpcrel_hi28)
+la.tls.gd a4, f1
