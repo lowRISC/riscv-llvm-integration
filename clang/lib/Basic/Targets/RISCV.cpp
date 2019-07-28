@@ -56,6 +56,10 @@ bool RISCVTargetInfo::validateAsmConstraint(
     // A 5-bit unsigned immediate for CSR access instructions.
     Info.setRequiresImmediate(0, 31);
     return true;
+  case 'A':
+    // An address that is held in a general-purpose register.
+    Info.setAllowsMemory();
+    return true;
   }
 }
 

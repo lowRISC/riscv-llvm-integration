@@ -26,3 +26,9 @@ void test_K() {
 // CHECK: call void asm sideeffect "", "K"(i32 0)
   asm volatile ("" :: "K"(0));
 }
+
+void test_A(int *p) {
+// CHECK-LABEL: define void @test_A(i32* %p)
+// CHECK: call void asm sideeffect "", "*A"(i32* %p)
+  asm volatile("" :: "A"(*p));
+}
