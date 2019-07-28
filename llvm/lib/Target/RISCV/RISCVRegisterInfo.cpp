@@ -155,3 +155,9 @@ RISCVRegisterInfo::getCallPreservedMask(const MachineFunction & MF,
     return CSR_ILP32D_LP64D_RegMask;
   }
 }
+
+const TargetRegisterClass *
+RISCVRegisterInfo::getPointerRegClass(const MachineFunction &MF,
+                                      unsigned Kind) const {
+  return &RISCV::GPRRegClass;
+}
