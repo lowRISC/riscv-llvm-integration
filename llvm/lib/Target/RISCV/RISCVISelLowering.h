@@ -92,6 +92,11 @@ public:
   // This method returns the name of a target specific DAG node.
   const char *getTargetNodeName(unsigned Opcode) const override;
 
+  // Get the type of an inline asm constraint.
+  ConstraintType getConstraintType(StringRef Constraint) const override;
+
+  unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const override;
+
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;

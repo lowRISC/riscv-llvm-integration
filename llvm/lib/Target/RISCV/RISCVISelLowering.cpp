@@ -2397,6 +2397,21 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   return nullptr;
 }
 
+RISCVTargetLowering::ConstraintType
+RISCVTargetLowering::getConstraintType(StringRef Constraint) const {
+  // Currently only support length 1 constraints.
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    case 'A':
+      return C_Memory;
+    default:
+      break;
+    }
+  }
+
+  return TargetLowering::getConstraintType(Constraint);
+}
+
 std::pair<unsigned, const TargetRegisterClass *>
 RISCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                                   StringRef Constraint,
@@ -2413,6 +2428,21 @@ RISCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   }
 
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
+unsigned
+RISCVTargetLowering::getInlineAsmMemConstraint(StringRef ConstraintCode) const {
+  // Currently only support length 1 constraints.
+  if (ConstraintCode.size() == 1) {
+    switch (ConstraintCode[0]) {
+    case 'A':
+      return InlineAsm::Constraint_A;
+    default:
+      break;
+    }
+  }
+
+  return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
 }
 
 void RISCVTargetLowering::LowerAsmOperandForConstraint(
